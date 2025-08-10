@@ -1,0 +1,63 @@
+{
+    "general": {
+        "output_file": "_user_xrefs.txt",
+        "min_confidence": 0.5,
+        "verbose": true,
+        "parallel_processing": true,
+        "max_workers": 4
+    },
+    "modules": {
+        "data_flow": {
+            "enabled": true,
+            "taint_sources": ["recv", "read", "fread", "scanf", "gets", "getchar", "recvfrom", "ReadFile"],
+            "taint_sinks": ["system", "exec", "strcpy", "sprintf", "memcpy", "execve", "ShellExecute"],
+            "max_taint_depth": 10
+        },
+        "obfuscation": {
+            "enabled": true,
+            "detect_cff": true,
+            "detect_opaque_predicates": true,
+            "detect_string_encryption": true,
+            "max_dispatcher_size": 1000
+        },
+        "architecture": {
+            "enabled": true,
+            "architectures": ["x86", "x64", "arm", "arm64", "mips"]
+        },
+        "graph": {
+            "enabled": true,
+            "max_chain_depth": 20,
+            "cluster_threshold": 0.7,
+            "complexity_threshold": 10
+        },
+        "ml": {
+            "enabled": false,
+            "model_path": null,
+            "similarity_threshold": 0.85,
+            "use_embeddings": true
+        },
+        "performance": {
+            "enabled": true,
+            "use_cache": true,
+            "cache_dir": ".xrefgen_cache",
+            "incremental": true
+        },
+        "ida_features": {
+            "enabled": true,
+            "use_lumina": false,
+            "use_microcode": true,
+            "use_type_libraries": true
+        },
+        "interactive": {
+            "enabled": false,
+            "preview_mode": true,
+            "custom_filters": []
+        }
+    },
+    "filters": {
+        "exclude_segments": [],
+        "exclude_functions": [],
+        "include_only_segments": [],
+        "include_only_functions": []
+    }
+}
