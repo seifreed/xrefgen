@@ -3,8 +3,7 @@
         "output_file": "_user_xrefs.txt",
         "min_confidence": 0.5,
         "verbose": true,
-        "parallel_processing": true,
-        "max_workers": 4
+        "details_output_file": "_user_xrefs_details.txt"
     },
     "modules": {
         "data_flow": {
@@ -31,10 +30,11 @@
             "complexity_threshold": 10
         },
         "ml": {
-            "enabled": false,
+            "enabled": true,
             "model_path": null,
             "similarity_threshold": 0.85,
-            "use_embeddings": true
+            "use_embeddings": false,
+            "max_functions": 1000
         },
         "performance": {
             "enabled": true,

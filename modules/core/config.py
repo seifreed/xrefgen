@@ -14,8 +14,7 @@ class Config:
             "output_file": "_user_xrefs.txt",
             "min_confidence": 0.5,
             "verbose": True,
-            "parallel_processing": True,
-            "max_workers": 4
+            "details_output_file": "_user_xrefs_details.txt"
         },
         "modules": {
             "data_flow": {
@@ -42,10 +41,11 @@ class Config:
                 "complexity_threshold": 10
             },
             "ml": {
-                "enabled": False,
+                "enabled": True,
                 "model_path": None,
                 "similarity_threshold": 0.85,
-                "use_embeddings": True
+                "use_embeddings": False,
+                "max_functions": 1000
             },
             "performance": {
                 "enabled": True,
@@ -74,7 +74,13 @@ class Config:
     }
     
     def __init__(self, config_file: str = None):
-        self.config_file = config_file or "xrefgen_config.json"
+        # Try to find config in script directory first
+        if config_file is None:
+            script_dir = os.path.dirname(os.path.abspath(__file__))
+            root_dir = os.path.dirname(os.path.dirname(script_dir))
+            self.config_file = os.path.join(root_dir, "xrefgen_config.json")
+        else:
+            self.config_file = config_file
         self.config = self.load_config()
         
     def load_config(self) -> Dict[str, Any]:

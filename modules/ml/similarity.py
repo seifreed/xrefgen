@@ -3,8 +3,11 @@ Machine Learning Integration Module (Placeholder)
 Function similarity detection, anomaly detection, and auto-categorization
 """
 
-from typing import Dict, List, Tuple
+from typing import Dict, List, Tuple, Set
 from modules.core.base import XrefAnalyzer
+import idautils
+import idc
+import math
 
 class MLSimilarityAnalyzer(XrefAnalyzer):
     """ML-based similarity and pattern analysis"""
@@ -32,17 +35,52 @@ class MLSimilarityAnalyzer(XrefAnalyzer):
             return False
     
     def analyze(self) -> List[Tuple[int, int, str, float]]:
-        """Perform ML-based analysis"""
-        if not self.ml_available:
+        """Approximate function similarity via mnemonic shingles + Jaccard."""
+        if not self.ml_available and not self.use_embeddings:
             return []
-        
-        results = []
-        
-        # Placeholder for ML analysis
-        # Would implement:
-        # 1. Function embedding generation
-        # 2. Similarity clustering
-        # 3. Anomaly detection
-        # 4. Pattern recognition
-        
+
+        results: List[Tuple[int, int, str, float]] = []
+        max_funcs = int(self.config.get('max_functions', 1000))
+        threshold = float(self.similarity_threshold)
+
+        # Build shingles per function
+        func_mnems: Dict[int, Set[str]] = {}
+        count = 0
+        for func_ea in idautils.Functions():
+            if count >= max_funcs:
+                break
+            mnems: Set[str] = set()
+            end = idc.get_func_attr(func_ea, idc.FUNCATTR_END)
+            if end == idc.BADADDR:
+                continue
+            for head in idautils.Heads(func_ea, end):
+                m = idc.print_insn_mnem(head).lower()
+                if m:
+                    mnems.add(m)
+            if mnems:
+                func_mnems[func_ea] = mnems
+                count += 1
+
+        funcs = list(func_mnems.keys())
+        n = len(funcs)
+        # Pairwise Jaccard (pruned by size)
+        for i in range(n):
+            a = funcs[i]
+            A = func_mnems[a]
+            for j in range(i + 1, n):
+                b = funcs[j]
+                B = func_mnems[b]
+                # Quick size filter
+                max_possible = min(len(A), len(B)) / max(len(A), len(B))
+                if max_possible < threshold:
+                    continue
+                inter = len(A & B)
+                union = len(A | B)
+                if union == 0:
+                    continue
+                sim = inter / union
+                if sim >= threshold:
+                    conf = min(0.95, 0.6 + 0.4 * sim)
+                    results.append((a, b, 'ml_similarity', conf))
+
         return results

@@ -9,11 +9,16 @@ import idautils
 import idc
 import ida_funcs
 import ida_gdl
+try:
+    import ida_ida
+except ImportError:
+    ida_ida = None
 from collections import defaultdict, deque
 from modules.core.base import XrefAnalyzer
+from modules.performance.optimizer import IncrementalAnalyzer
 import math
 
-class GraphAnalyzer(XrefAnalyzer):
+class GraphAnalyzer(IncrementalAnalyzer):
     """Graph-based analysis for call chains and function clustering"""
     
     def __init__(self, config: Dict = None):
@@ -52,6 +57,22 @@ class GraphAnalyzer(XrefAnalyzer):
         results.extend(complex_refs)
         
         return results
+
+    def analyze_function(self, func) -> List[Tuple[int, int, str, float]]:
+        """Incremental analysis for a single function: only emit its call edges."""
+        func_ea = func.start_ea
+        local_results: List[Tuple[int, int, str, float]] = []
+        # Build calls from this function only
+        for head in idautils.Heads(func.start_ea, func.end_ea):
+            mnem = idc.print_insn_mnem(head).lower()
+            if mnem in ["call", "bl", "blx", "jal", "jalr"]:
+                target = self._get_call_target(head)
+                if target and self.is_valid_reference(target):
+                    self.call_graph[func_ea].add(target)
+                    self.reverse_call_graph[target].add(func_ea)
+                    self.add_xref(func_ea, target, "call_edge", 0.9)
+                    local_results.append((func_ea, target, "call_edge", 0.9))
+        return local_results
     
     def _build_call_graph(self):
         """Build complete call graph of the binary"""
@@ -117,13 +138,14 @@ class GraphAnalyzer(XrefAnalyzer):
             chains = self._build_chains_from_entry(entry)
             
             for chain in chains:
-                if len(chain) > 2:  # Only interesting chains
+                # Pruning: require paths longer than 2 and cap total links per entry
+                if len(chain) > 2:
                     # Create xrefs for chain segments
                     for i in range(len(chain) - 1):
                         source = chain[i]
                         target = chain[i + 1]
                         depth = i + 1
-                        confidence = max(0.5, 1.0 - (depth * 0.05))
+                        confidence = max(0.6, 1.0 - (depth * 0.1))
                         
                         self.add_xref(source, target, f"call_chain_depth_{depth}", confidence)
                         results.append((source, target, f"call_chain_depth_{depth}", confidence))
@@ -142,7 +164,7 @@ class GraphAnalyzer(XrefAnalyzer):
             entry_points.append(main_ea)
         
         # Start address
-        start_ea = idc.get_inf_attr(idc.INF_START_EA)
+        start_ea = ida_ida.inf_get_start_ea()
         if start_ea != idc.BADADDR:
             entry_points.append(start_ea)
         
@@ -188,7 +210,13 @@ class GraphAnalyzer(XrefAnalyzer):
             if any(name in seg_name.lower() for name in [".init", ".ctor", ".dtor", ".fini"]):
                 # Read function pointers from section
                 seg_end = idc.get_segm_end(seg_ea)
-                ptr_size = 8 if idaapi.get_inf_structure().is_64bit() else 4
+                is64 = False
+                if ida_ida is not None and hasattr(ida_ida, 'inf_is_64bit'):
+                    try:
+                        is64 = ida_ida.inf_is_64bit()
+                    except Exception:
+                        is64 = False
+                ptr_size = 8 if is64 else 4
                 
                 ea = seg_ea
                 while ea < seg_end:

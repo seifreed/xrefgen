@@ -8,14 +8,15 @@ import json
 import pickle
 import hashlib
 import time
-from typing import Dict, List, Tuple, Any, Optional, Set
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from typing import Dict, List, Tuple, Any, Optional, Set, Callable
 from functools import lru_cache
 import idaapi
 import idautils
 import idc
 import ida_funcs
 import ida_bytes
+import ida_segment
+import ida_kernwin
 from modules.core.base import XrefAnalyzer
 
 class PerformanceOptimizer:
@@ -26,7 +27,7 @@ class PerformanceOptimizer:
         self.use_cache = config.get('use_cache', True)
         self.cache_dir = config.get('cache_dir', '.xrefgen_cache')
         self.incremental = config.get('incremental', True)
-        self.max_workers = config.get('max_workers', 4)
+        # No worker threads used; all work is dispatched on IDA's main thread
         
         # Create cache directory
         if self.use_cache:
@@ -195,60 +196,61 @@ class PerformanceOptimizer:
         
         return None
     
-    def parallel_analyze(self, analyzers: List[XrefAnalyzer], 
-                        modified_only: bool = True) -> Dict[str, List]:
-        """Run analyzers in parallel for better performance"""
-        results = {}
-        
+    def analyze_sequential(self, analyzers: List[XrefAnalyzer], 
+                           modified_only: bool = True) -> Dict[str, List]:
+        """Run analyzers sequentially on IDA's main thread (thread-safe)."""
+        results: Dict[str, List] = {}
+
         # Get functions to analyze
         if modified_only and self.incremental:
             target_functions = self.get_modified_functions()
         else:
             target_functions = set(idautils.Functions())
-        
+
         print(f"[XrefGen] Analyzing {len(target_functions)} functions with {len(analyzers)} modules")
-        
-        # Create work items
-        work_items = []
+
+        # Run each analyzer sequentially
         for analyzer in analyzers:
-            # Check if analyzer supports incremental analysis
             if hasattr(analyzer, 'supports_incremental') and analyzer.supports_incremental:
                 funcs = target_functions
             else:
-                funcs = set(idautils.Functions())  # Full analysis for this module
-            
-            work_items.append((analyzer, funcs))
-        
-        # Execute in parallel
-        with ThreadPoolExecutor(max_workers=self.max_workers) as executor:
-            futures = {}
-            
-            for analyzer, funcs in work_items:
-                future = executor.submit(self._run_analyzer_cached, analyzer, funcs)
-                futures[future] = analyzer.get_name()
-            
-            # Collect results
-            for future in as_completed(futures):
-                module_name = futures[future]
-                try:
-                    module_results = future.result(timeout=300)  # 5 minute timeout
-                    results[module_name] = module_results
-                    print(f"[XrefGen] {module_name} completed with {len(module_results)} results")
-                except Exception as e:
-                    print(f"[XrefGen] Error in {module_name}: {e}")
-                    results[module_name] = []
-        
+                funcs = set(idautils.Functions())
+
+            try:
+                module_results = self._run_analyzer_cached(analyzer, funcs)
+                results[analyzer.get_name()] = module_results
+                print(f"[XrefGen] {analyzer.get_name()} completed with {len(module_results)} results")
+            except Exception as e:
+                print(f"[XrefGen] Error in {analyzer.get_name()}: {e}")
+                results[analyzer.get_name()] = []
+
         # Save cache after analysis
         self.save_cache()
-        
+
         return results
     
     def _run_analyzer_cached(self, analyzer: XrefAnalyzer, 
                             target_functions: Set[int]) -> List:
-        """Run analyzer with caching support"""
-        all_results = []
+        """Run analyzer with caching support. All IDA calls are dispatched to the main thread."""
+        all_results: List = []
         module_name = analyzer.get_name()
-        
+
+        # Helper to run a callable on IDA main thread and capture its result/exception
+        def run_on_main_thread(func: Callable[[], Any], mode: int = ida_kernwin.MFF_READ) -> Any:
+            holder: Dict[str, Any] = {}
+
+            def wrapper():
+                try:
+                    holder['result'] = func()
+                except Exception as ex:
+                    holder['exception'] = ex
+
+            # Schedule on IDA's main thread
+            ida_kernwin.execute_sync(wrapper, mode)
+            if 'exception' in holder:
+                raise holder['exception']
+            return holder.get('result')
+
         # Check if analyzer has function-level granularity
         if hasattr(analyzer, 'analyze_function'):
             # Function-level analysis with caching
@@ -257,19 +259,27 @@ class PerformanceOptimizer:
                 cached = self.get_cached_result(func_ea, module_name)
                 if cached is not None:
                     all_results.extend(cached)
-                else:
-                    # Run analysis
+                    continue
+
+                # Fetch ida_funcs.get_func and run analyze_function on main thread
+                def analyze_one():
                     func = ida_funcs.get_func(func_ea)
-                    if func:
-                        func_results = analyzer.analyze_function(func)
-                        all_results.extend(func_results)
-                        
-                        # Cache results
-                        self.cache_analysis_result(func_ea, module_name, func_results)
+                    if not func:
+                        return []
+                    return analyzer.analyze_function(func)
+
+                func_results: List = run_on_main_thread(analyze_one)
+                if func_results:
+                    all_results.extend(func_results)
+                    # Cache results
+                    self.cache_analysis_result(func_ea, module_name, func_results)
         else:
             # Module-level analysis (can't cache per function)
-            all_results = analyzer.analyze()
-        
+            def analyze_all():
+                return analyzer.analyze()
+
+            all_results = run_on_main_thread(analyze_all)
+
         return all_results
     
     @lru_cache(maxsize=1024)

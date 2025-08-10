@@ -11,7 +11,7 @@ import sys
 import os
 import time
 import argparse
-from typing import Dict, List, Any
+from typing import Dict, List, Any, Tuple
 
 # Add modules to path
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
@@ -21,6 +21,11 @@ import idautils
 import idc
 import ida_auto
 import ida_kernwin
+import ida_nalt
+try:
+    import ida_ida
+except ImportError:
+    ida_ida = None
 
 # Import core modules
 from modules.core.base import ModuleManager
@@ -101,14 +106,14 @@ class XrefGen:
             except ImportError:
                 print("[XrefGen] ML module not available, skipping...")
         
-        # IDA Pro 9.1 Features (stub for now)
+        # IDA features (Hex-Rays microcode, Lumina, types)
         if self.config.get('modules.ida_features.enabled'):
             try:
                 from modules.ida_features.ida91 import IDA91Analyzer
-                ida91 = IDA91Analyzer(self.config.get_module_config('ida_features'))
-                self.manager.register_module(ida91)
-            except ImportError:
-                print("[XrefGen] IDA 9.1 features module not available, skipping...")
+                ida_features = IDA91Analyzer(self.config.get_module_config('ida_features'))
+                self.manager.register_module(ida_features)
+            except Exception as e:
+                print(f"[XrefGen] IDA features module failed to load: {e}")
         
         # Interactive Features (stub for now)
         if self.config.get('modules.interactive.enabled'):
@@ -145,22 +150,20 @@ class XrefGen:
                 print("[XrefGen] No modified functions detected, skipping analysis")
                 return
         
-        # Run analysis with performance optimization
-        if self.config.get('modules.performance.enabled') and self.config.get('general.parallel_processing'):
-            # Parallel execution
-            print("[XrefGen] Running parallel analysis...")
-            results_by_module = self.optimizer.parallel_analyze(
+        # Run analysis with performance optimization (sequential and main-thread safe)
+        if self.config.get('modules.performance.enabled'):
+            print("[XrefGen] Running analysis...")
+            results_by_module = self.optimizer.analyze_sequential(
                 self.manager.modules,
                 modified_only=incremental
             )
-            
-            # Combine results
+
+            # Combine results from modules
             all_results = []
             for module_results in results_by_module.values():
                 all_results.extend(module_results)
         else:
-            # Sequential execution
-            print("[XrefGen] Running sequential analysis...")
+            print("[XrefGen] Running analysis without performance optimizer...")
             all_results = self.manager.run_analysis(modules)
         
         # Filter by confidence
@@ -198,52 +201,68 @@ class XrefGen:
     
     def _get_arch_name(self) -> str:
         """Get architecture name"""
-        info = idaapi.get_inf_structure()
-        procname = info.procname.lower()
+        # Use IDA 9.1 API only
+        procname = ida_ida.inf_get_procname().lower()
+        is_64 = ida_ida.inf_is_64bit()
         
         if 'arm' in procname:
-            return 'ARM64' if info.is_64bit() else 'ARM'
+            return 'ARM64' if is_64 else 'ARM'
         elif 'mips' in procname:
             return 'MIPS'
         elif 'wasm' in procname:
             return 'WebAssembly'
-        elif info.is_64bit():
+        elif is_64:
             return 'x64'
         else:
             return 'x86'
     
     def _save_results(self, results: List[Tuple[int, int, str, float]], output_file: str):
-        """Save cross-references to file"""
+        """Save cross-references to files: minimal pairs file and detailed report"""
         # Get binary directory
         binary_path = ida_nalt.get_input_file_path()
-        output_path = os.path.join(os.path.dirname(binary_path), output_file)
-        
+        base_dir = os.path.dirname(binary_path)
+        output_path = os.path.join(base_dir, output_file)
+
+        # Determine details output file
+        details_name = self.config.get('general.details_output_file')
+        if not details_name:
+            if output_file.lower().endswith('.txt'):
+                details_name = output_file[:-4] + '_details.txt'
+            else:
+                details_name = output_file + '_details.txt'
+        details_path = os.path.join(base_dir, details_name)
+
+        # 1) Minimal output: just "0xsrc,0xdst" per line (no comments)
         print(f"\n[XrefGen] Saving {len(results)} cross-references to {output_path}")
-        
-        with open(output_path, 'w') as f:
-            # Write header
-            f.write("# XrefGen v2.0 - Cross-Reference Analysis Results\n")
-            f.write(f"# Binary: {os.path.basename(binary_path)}\n")
-            f.write(f"# Generated: {time.strftime('%Y-%m-%d %H:%M:%S')}\n")
-            f.write(f"# Total xrefs: {len(results)}\n")
-            f.write("#\n")
-            f.write("# Format: source,target # type (confidence)\n")
-            f.write("#\n\n")
-            
+        with open(output_path, 'w') as f_min:
+            for source, target, _typ, _conf in results:
+                f_min.write(f"0x{source:x},0x{target:x}\n")
+        print(f"[XrefGen] Results written to: {output_path}")
+
+        # 2) Detailed report with headers, types, and confidence
+        with open(details_path, 'w') as f_det:
+            f_det.write("# XrefGen v2.0 - Cross-Reference Analysis Results\n")
+            f_det.write(f"# Binary: {os.path.basename(binary_path)}\n")
+            f_det.write(f"# Generated: {time.strftime('%Y-%m-%d %H:%M:%S')}\n")
+            f_det.write(f"# Total xrefs: {len(results)}\n")
+            f_det.write("#\n")
+            f_det.write("# Format: source,target # type (confidence)\n")
+            f_det.write("#\n\n")
+
             # Group by type for better readability
             results_by_type = {}
             for source, target, xref_type, confidence in sorted(results):
                 if xref_type not in results_by_type:
                     results_by_type[xref_type] = []
                 results_by_type[xref_type].append((source, target, confidence))
-            
+
             # Write grouped results
             for xref_type in sorted(results_by_type.keys()):
-                f.write(f"\n# {xref_type} ({len(results_by_type[xref_type])} refs)\n")
+                f_det.write(f"\n# {xref_type} ({len(results_by_type[xref_type])} refs)\n")
                 for source, target, confidence in results_by_type[xref_type]:
-                    f.write(f"0x{source:x},0x{target:x} # {xref_type} ({confidence:.2f})\n")
-        
-        print(f"[XrefGen] Results written to: {output_path}")
+                    f_det.write(f"0x{source:x},0x{target:x} # {xref_type} ({confidence:.2f})\n")
+
+        print(f"[XrefGen] Detailed report written to: {details_path}")
     
     def _print_statistics(self):
         """Print analysis statistics"""

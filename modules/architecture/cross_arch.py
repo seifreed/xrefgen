@@ -11,6 +11,10 @@ import ida_funcs
 import ida_ua
 import ida_bytes
 import ida_segregs
+try:
+    import ida_ida
+except ImportError:
+    ida_ida = None
 from modules.core.base import XrefAnalyzer
 
 class CrossArchAnalyzer(XrefAnalyzer):
@@ -22,9 +26,9 @@ class CrossArchAnalyzer(XrefAnalyzer):
             ['x86', 'x64', 'arm', 'arm64', 'mips', 'wasm'])
         
         # Detect current architecture
-        info = idaapi.get_inf_structure()
-        self.arch = self._detect_architecture(info)
-        self.is_64bit = info.is_64bit()
+        self.arch = self._detect_architecture()
+        # Get 64-bit flag (use new API when available)
+        self.is_64bit = bool(ida_ida.inf_is_64bit())
         
         # Architecture-specific handlers
         self.arch_handlers = {
@@ -39,12 +43,16 @@ class CrossArchAnalyzer(XrefAnalyzer):
     def get_name(self) -> str:
         return "CrossArchAnalyzer"
     
-    def _detect_architecture(self, info) -> str:
+    def _detect_architecture(self) -> str:
         """Detect the current binary architecture"""
-        procname = info.procname.lower()
+        # Try IDA 9.x API first, then fall back
+        procname = ''
+        is_64 = False
+        procname = ida_ida.inf_get_procname().lower()
+        is_64 = bool(ida_ida.inf_is_64bit())
         
         if 'arm' in procname:
-            if info.is_64bit():
+            if is_64:
                 return 'arm64'
             else:
                 return 'arm'
@@ -52,7 +60,7 @@ class CrossArchAnalyzer(XrefAnalyzer):
             return 'mips'
         elif 'wasm' in procname:
             return 'wasm'
-        elif info.is_64bit():
+        elif is_64:
             return 'x64'
         else:
             return 'x86'

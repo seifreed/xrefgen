@@ -12,7 +12,6 @@ Professional IDAPython script that generates additional cross-references for IDA
 
 ### Major Architecture Overhaul
 - **Modular Design**: Complete refactor into 10+ specialized modules
-- **Parallel Processing**: 5-10x faster analysis on large binaries
 - **Incremental Analysis**: Only analyzes modified functions
 - **Confidence Scoring**: Every xref now has a reliability score (0.0-1.0)
 - **Configuration System**: JSON-based configuration for fine-tuning
@@ -22,7 +21,7 @@ Professional IDAPython script that generates additional cross-references for IDA
 - **Advanced Obfuscation Detection**: Control flow flattening & opaque predicates
 - **Cross-Architecture Support**: ARM/ARM64/MIPS/WebAssembly support
 - **Graph-Based Analysis**: Call chains and function clustering
-- **Performance Optimization**: Smart caching and parallel execution
+- **Performance Optimization**: Smart caching and incremental execution
 
 ## Overview
 
@@ -273,7 +272,6 @@ Configure analysis via `xrefgen_config.json`:
 
 ### v2.0 Performance Features
 - **Incremental Analysis**: Use `xgen.run(incremental=True)` to only analyze changed functions
-- **Parallel Processing**: Automatically uses multiple CPU cores (configure `max_workers` in config)
 - **Smart Caching**: Previous analysis results are cached (clear with `xgen.optimizer.clear_cache()`)
 - **Module Selection**: Run only needed modules to reduce analysis time
 
@@ -356,13 +354,13 @@ xgen.run()  # Includes all v1.x features plus more
 
 - **v2.0**: Complete modular architecture refactor
   - 10+ specialized analysis modules
-  - Parallel processing and incremental analysis
+  - Incremental analysis and caching
   - Cross-architecture support (ARM/MIPS/WASM)
   - Advanced obfuscation detection (CFF, opaque predicates)
   - Enhanced data flow analysis with taint tracking
   - Graph-based analysis with clustering
   - Confidence scoring system
-  - 5-10x performance improvement
+  - Performance improvements via caching and incremental execution
 - **v1.2**: Added pseudocode analysis, stack variables, dynamic imports, string analysis, variable references
 - **v1.1**: Enhanced switch-case detection, performance optimizations
 - **v1.0**: Initial release with basic indirect call detection

@@ -11,6 +11,11 @@ import ida_funcs
 import ida_ua
 import ida_xref
 from modules.core.base import XrefAnalyzer
+from modules.utils import abi
+try:
+    import ida_ida
+except ImportError:
+    ida_ida = None
 
 class DataFlowAnalyzer(XrefAnalyzer):
     """Enhanced data flow analysis for taint tracking and value propagation"""
@@ -31,6 +36,9 @@ class DataFlowAnalyzer(XrefAnalyzer):
         self.tainted_regs = {}  # func_ea -> {reg: (source_ea, confidence)}
         self.tainted_mem = {}   # func_ea -> {mem_addr: (source_ea, confidence)}
         self.return_values = {}  # func_ea -> (value, confidence)
+        # Some IDA versions (including 9.1 Python API) do not expose idc.get_sp_val
+        # Guard stack taint tracking accordingly
+        self._has_get_sp_val = hasattr(idc, 'get_sp_val')
         
     def get_name(self) -> str:
         return "DataFlowAnalyzer"
@@ -98,12 +106,8 @@ class DataFlowAnalyzer(XrefAnalyzer):
         if not func:
             return
             
-        # Get return register (RAX/EAX for x86/x64)
-        info = idaapi.get_inf_structure()
-        if info.is_64bit():
-            ret_reg = idaapi.R_ax  # RAX
-        else:
-            ret_reg = 0  # EAX
+        # Get return register name based on ABI
+        ret_reg = abi.return_reg()
             
         # Mark return value as tainted
         if func.start_ea not in self.tainted_regs:
@@ -139,17 +143,17 @@ class DataFlowAnalyzer(XrefAnalyzer):
         
         # Get destination
         if dst_type == idc.o_reg:
-            dst_reg = idc.get_operand_value(ea, 0)
+            dst_reg = idc.print_operand(ea, 0).lower()
             
             # Check if source is tainted
             if src_type == idc.o_reg:
-                src_reg = idc.get_operand_value(ea, 1)
+                src_reg = idc.print_operand(ea, 1).lower()
                 if func_ea in self.tainted_regs and src_reg in self.tainted_regs[func_ea]:
                     # Propagate taint
                     source, conf = self.tainted_regs[func_ea][src_reg]
                     self.tainted_regs[func_ea][dst_reg] = (source, conf * 0.95)
     
-    def _track_register_forward(self, start_ea: int, reg: int, source: int):
+    def _track_register_forward(self, start_ea: int, reg: str, source: int):
         """Track a tainted register forward through the code"""
         func = ida_funcs.get_func(start_ea)
         if not func:
@@ -165,7 +169,7 @@ class DataFlowAnalyzer(XrefAnalyzer):
             for i in range(2):
                 op_type = idc.get_operand_type(ea, i)
                 if op_type == idc.o_reg:
-                    op_reg = idc.get_operand_value(ea, i)
+                    op_reg = idc.print_operand(ea, i).lower()
                     if op_reg == reg:
                         # Register is used
                         if mnem in ["call", "jmp"] and i == 0:
@@ -184,13 +188,82 @@ class DataFlowAnalyzer(XrefAnalyzer):
         if not func or func.start_ea not in self.tainted_regs:
             return None
             
-        # Check common argument registers (x64 calling convention)
-        arg_regs = [idaapi.R_cx, idaapi.R_dx, idaapi.R_r8, idaapi.R_r9]  # RCX, RDX, R8, R9
+        # Argument registers based on ABI (supports SysV and Win64)
+        arg_regs = abi.arg_registers()
         
-        for reg in arg_regs:
-            if reg in self.tainted_regs[func.start_ea]:
-                return self.tainted_regs[func.start_ea][reg]
+        for reg_name in arg_regs:
+            if reg_name in self.tainted_regs[func.start_ea]:
+                return self.tainted_regs[func.start_ea][reg_name]
                 
+        # If no tainted registers, scan stack stores/pushes prior to call
+        stack_taint = self._scan_stack_arguments(call_ea, func)
+        if stack_taint:
+            return stack_taint
+        return None
+
+    def _scan_stack_arguments(self, call_ea: int, func) -> Optional[Tuple[int, float]]:
+        """Scan a window before call for stack-based argument setup.
+        - Win64: detect home space stores to [rsp+0..24]
+        - SysV: detect additional args via pushes or [rsp+offset] stores
+        Returns (source_ea, confidence) if tainted data flows into an argument.
+        """
+        max_back = 16
+        win64 = (abi.calling_convention() == 'win64')
+        win_slots = {0, 8, 16, 24}
+        shadow_size = 0  # detected SUB RSP, imm before call
+        ea = call_ea
+        for _ in range(max_back):
+            ea = idc.prev_head(ea)
+            if ea == idc.BADADDR or ea < func.start_ea:
+                break
+            mnem = idc.print_insn_mnem(ea).lower()
+            # Detect stack reservation near call (Win64 shadow space or prologue sizing)
+            if mnem == 'sub':
+                d0 = idc.get_operand_type(ea, 0)
+                d1 = idc.get_operand_type(ea, 1)
+                if d0 == idc.o_reg and d1 == idc.o_imm:
+                    if idc.print_operand(ea, 0).lower() in ('rsp', 'esp'):
+                        try:
+                            shadow_size = int(idc.get_operand_value(ea, 1))
+                        except Exception:
+                            shadow_size = 0
+            # mov [rsp+imm], reg
+            if mnem == 'mov':
+                dst_type = idc.get_operand_type(ea, 0)
+                src_type = idc.get_operand_type(ea, 1)
+                if dst_type == idc.o_displ:
+                    op = idc.print_operand(ea, 0).lower()
+                    if op.startswith('[rsp+') or op.startswith('[esp+'):
+                        # Extract offset
+                        try:
+                            off_str = op.split('+', 1)[1].rstrip(']')
+                            off = int(off_str, 0) if off_str.startswith('0x') or off_str.isdigit() else -1
+                        except Exception:
+                            off = -1
+                        # Accept canonical homes (0..24), or any 8-byte slot within locally detected reservation
+                        accept_win64 = (off in win_slots) or (shadow_size and 0 <= off < shadow_size and off % 8 == 0)
+                        if off >= 0 and ((not win64) or accept_win64):
+                            # If source is a tainted reg, treat as tainted arg
+                            if src_type == idc.o_reg:
+                                src_reg = idc.print_operand(ea, 1).lower()
+                                if src_reg in self.tainted_regs.get(func.start_ea, {}):
+                                    return self.tainted_regs[func.start_ea][src_reg]
+                            # If source is immediate/address (low confidence)
+                            if src_type == idc.o_imm:
+                                val = idc.get_operand_value(ea, 1)
+                                if self.is_valid_reference(val):
+                                    return (ea, 0.5)
+            # push reg/imm (cdecl/SysV extras)
+            if mnem == 'push':
+                op_type = idc.get_operand_type(ea, 0)
+                if op_type == idc.o_reg:
+                    src_reg = idc.print_operand(ea, 0).lower()
+                    if src_reg in self.tainted_regs.get(func.start_ea, {}):
+                        return self.tainted_regs[func.start_ea][src_reg]
+                elif op_type == idc.o_imm:
+                    val = idc.get_operand_value(ea, 0)
+                    if self.is_valid_reference(val):
+                        return (ea, 0.5)
         return None
     
     def _analyze_return_values(self) -> List[Tuple[int, int, str, float]]:
@@ -236,10 +309,9 @@ class DataFlowAnalyzer(XrefAnalyzer):
             if mnem == "mov":
                 dst_type = idc.get_operand_type(ea, 0)
                 if dst_type == idc.o_reg:
-                    dst_reg = idc.get_operand_value(ea, 0)
+                    dst_reg = idc.print_operand(ea, 0).lower()
                     # Check if it's RAX/EAX
-                    info = idaapi.get_inf_structure()
-                    ret_reg = idaapi.R_ax if info.is_64bit() else 0
+                    ret_reg = abi.return_reg()
                     
                     if dst_reg == ret_reg:
                         src_type = idc.get_operand_type(ea, 1)
@@ -273,9 +345,8 @@ class DataFlowAnalyzer(XrefAnalyzer):
             if mnem == "call":
                 op_type = idc.get_operand_type(ea, 0)
                 if op_type == idc.o_reg:
-                    op_reg = idc.get_operand_value(ea, 0)
-                    info = idaapi.get_inf_structure()
-                    ret_reg = idaapi.R_ax if info.is_64bit() else 0
+                    op_reg = idc.print_operand(ea, 0).lower()
+                    ret_reg = abi.return_reg()
                     
                     if op_reg == ret_reg:
                         return (ret_value, ret_conf * 0.85)
@@ -392,13 +463,13 @@ class DataFlowAnalyzer(XrefAnalyzer):
         dst_type = idc.get_operand_type(ea, 0)
         
         if dst_type == idc.o_reg:
-            dst_reg = idc.get_operand_value(ea, 0)
+            dst_reg = idc.print_operand(ea, 0).lower()
             
             # Check if any source operand is tainted
             for i in range(1, 3):
                 op_type = idc.get_operand_type(ea, i)
                 if op_type == idc.o_reg:
-                    src_reg = idc.get_operand_value(ea, i)
+                    src_reg = idc.print_operand(ea, i).lower()
                     if func_ea in self.tainted_regs and src_reg in self.tainted_regs[func_ea]:
                         # Propagate taint with reduced confidence
                         source, conf = self.tainted_regs[func_ea][src_reg]
@@ -410,28 +481,41 @@ class DataFlowAnalyzer(XrefAnalyzer):
     def _track_stack_taint(self, ea: int, func_ea: int):
         """Track taint through stack operations"""
         mnem = idc.print_insn_mnem(ea).lower()
+        # Simple LIFO stack fallback per function when SP API isn't available
+        if not hasattr(self, '_lifo_stacks'):
+            self._lifo_stacks = {}
+        lifo = self._lifo_stacks.setdefault(func_ea, [])
         
         if mnem == "push":
             # Check if pushed value is tainted
             op_type = idc.get_operand_type(ea, 0)
             if op_type == idc.o_reg:
-                reg = idc.get_operand_value(ea, 0)
+                reg = idc.print_operand(ea, 0).lower()
                 if func_ea in self.tainted_regs and reg in self.tainted_regs[func_ea]:
-                    # Mark stack location as tainted
-                    sp = idc.get_sp_val(ea)
-                    if sp != idc.BADADDR:
-                        if func_ea not in self.tainted_mem:
-                            self.tainted_mem[func_ea] = {}
-                        self.tainted_mem[func_ea][sp] = self.tainted_regs[func_ea][reg]
-                        
+                    # Mark stack location as tainted if API available
+                    if self._has_get_sp_val:
+                        sp = idc.get_sp_val(ea)
+                        if sp != idc.BADADDR:
+                            if func_ea not in self.tainted_mem:
+                                self.tainted_mem[func_ea] = {}
+                            self.tainted_mem[func_ea][sp] = self.tainted_regs[func_ea][reg]
+                    else:
+                        lifo.append(self.tainted_regs[func_ea][reg])
+        
         elif mnem == "pop":
             # Check if popping to a register from tainted stack location
             op_type = idc.get_operand_type(ea, 0)
             if op_type == idc.o_reg:
-                reg = idc.get_operand_value(ea, 0)
-                sp = idc.get_sp_val(ea)
-                if sp != idc.BADADDR and func_ea in self.tainted_mem and sp in self.tainted_mem[func_ea]:
-                    # Propagate taint from stack to register
-                    if func_ea not in self.tainted_regs:
-                        self.tainted_regs[func_ea] = {}
-                    self.tainted_regs[func_ea][reg] = self.tainted_mem[func_ea][sp]
+                reg_name = idc.print_operand(ea, 0).lower()
+                if self._has_get_sp_val:
+                    sp = idc.get_sp_val(ea)
+                    if sp != idc.BADADDR and func_ea in self.tainted_mem and sp in self.tainted_mem[func_ea]:
+                        # Propagate taint from stack to register
+                        if func_ea not in self.tainted_regs:
+                            self.tainted_regs[func_ea] = {}
+                        self.tainted_regs[func_ea][reg_name] = self.tainted_mem[func_ea][sp]
+                else:
+                    if lifo:
+                        if func_ea not in self.tainted_regs:
+                            self.tainted_regs[func_ea] = {}
+                        self.tainted_regs[func_ea][reg_name] = lifo.pop()
