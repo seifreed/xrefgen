@@ -20,6 +20,24 @@ except ImportError:
 class DataFlowAnalyzer(XrefAnalyzer):
     """Enhanced data flow analysis for taint tracking and value propagation"""
     
+    def _safe_get_operand_value(self, ea: int, op_idx: int) -> Optional[int]:
+        """Safely get operand value with error handling"""
+        try:
+            if idc.get_operand_type(ea, op_idx) != idc.o_void:
+                return idc.get_operand_value(ea, op_idx)
+        except:
+            pass
+        return None
+    
+    def _safe_print_operand(self, ea: int, op_idx: int) -> str:
+        """Safely get operand string with error handling"""
+        try:
+            if idc.get_operand_type(ea, op_idx) != idc.o_void:
+                return idc.print_operand(ea, op_idx)
+        except:
+            pass
+        return ""
+    
     def __init__(self, config: Dict = None):
         super().__init__(config)
         self.taint_sources = set(config.get('taint_sources', [
@@ -47,17 +65,26 @@ class DataFlowAnalyzer(XrefAnalyzer):
         """Perform comprehensive data flow analysis"""
         results = []
         
-        # Analyze taint propagation
-        taint_refs = self._analyze_taint_propagation()
-        results.extend(taint_refs)
+        try:
+            # Analyze taint propagation
+            taint_refs = self._analyze_taint_propagation()
+            results.extend(taint_refs)
+        except Exception as e:
+            print(f"[DataFlowAnalyzer] Warning in taint analysis: {e}")
         
-        # Analyze return value propagation
-        return_refs = self._analyze_return_values()
-        results.extend(return_refs)
+        try:
+            # Analyze return value propagation
+            return_refs = self._analyze_return_values()
+            results.extend(return_refs)
+        except Exception as e:
+            print(f"[DataFlowAnalyzer] Warning in return value analysis: {e}")
         
-        # Analyze multi-level pointer chains
-        pointer_refs = self._analyze_pointer_chains()
-        results.extend(pointer_refs)
+        try:
+            # Analyze multi-level pointer chains
+            pointer_refs = self._analyze_pointer_chains()
+            results.extend(pointer_refs)
+        except Exception as e:
+            print(f"[DataFlowAnalyzer] Warning in pointer chain analysis: {e}")
         
         return results
     
@@ -67,7 +94,12 @@ class DataFlowAnalyzer(XrefAnalyzer):
         
         # Find all taint sources
         for func_ea in idautils.Functions():
-            func_name = idc.get_func_name(func_ea)
+            try:
+                func_name = idc.get_func_name(func_ea)
+                if not func_name:
+                    continue
+            except:
+                continue
             
             # Check if this function is a taint source
             for source in self.taint_sources:
@@ -82,7 +114,12 @@ class DataFlowAnalyzer(XrefAnalyzer):
         
         # Find paths from sources to sinks
         for func_ea in idautils.Functions():
-            func_name = idc.get_func_name(func_ea)
+            try:
+                func_name = idc.get_func_name(func_ea)
+                if not func_name:
+                    continue
+            except:
+                continue
             
             # Check if this function is a taint sink
             for sink in self.taint_sinks:
@@ -124,7 +161,12 @@ class DataFlowAnalyzer(XrefAnalyzer):
             return
             
         for head in idautils.Heads(func.start_ea, func.end_ea):
-            mnem = idc.print_insn_mnem(head).lower()
+            try:
+                mnem = idc.print_insn_mnem(head).lower()
+                if not mnem:
+                    continue
+            except:
+                continue
             
             # Track MOV instructions for taint propagation
             if mnem == "mov":
@@ -138,16 +180,23 @@ class DataFlowAnalyzer(XrefAnalyzer):
     
     def _track_mov_taint(self, ea: int, func_ea: int):
         """Track taint through MOV instructions"""
-        dst_type = idc.get_operand_type(ea, 0)
-        src_type = idc.get_operand_type(ea, 1)
+        try:
+            dst_type = idc.get_operand_type(ea, 0)
+            src_type = idc.get_operand_type(ea, 1)
+        except:
+            return
         
         # Get destination
         if dst_type == idc.o_reg:
-            dst_reg = idc.print_operand(ea, 0).lower()
+            dst_reg = self._safe_print_operand(ea, 0).lower()
+            if not dst_reg:
+                return
             
             # Check if source is tainted
             if src_type == idc.o_reg:
-                src_reg = idc.print_operand(ea, 1).lower()
+                src_reg = self._safe_print_operand(ea, 1).lower()
+                if not src_reg:
+                    return
                 if func_ea in self.tainted_regs and src_reg in self.tainted_regs[func_ea]:
                     # Propagate taint
                     source, conf = self.tainted_regs[func_ea][src_reg]
@@ -378,7 +427,12 @@ class DataFlowAnalyzer(XrefAnalyzer):
         chains = []
         
         for head in idautils.Heads(func.start_ea, func.end_ea):
-            mnem = idc.print_insn_mnem(head).lower()
+            try:
+                mnem = idc.print_insn_mnem(head).lower()
+                if not mnem:
+                    continue
+            except:
+                continue
             
             # Look for patterns like: mov rax, [rbx]; mov rcx, [rax]; call [rcx]
             if mnem == "mov":
@@ -410,7 +464,7 @@ class DataFlowAnalyzer(XrefAnalyzer):
                 src_type = idc.get_operand_type(ea, 1)
                 
                 if dst_type == idc.o_reg:
-                    dst_reg = idc.get_operand_value(ea, 0)
+                    dst_reg = idc.print_operand(ea, 0)
                     
                     # Check if source is a memory dereference
                     if src_type == idc.o_displ or src_type == idc.o_mem:
@@ -433,7 +487,7 @@ class DataFlowAnalyzer(XrefAnalyzer):
         
         return chain if len(chain) > 1 else []
     
-    def _resolve_register_value(self, ea: int, reg: int) -> Optional[int]:
+    def _resolve_register_value(self, ea: int, reg) -> Optional[int]:
         """Try to resolve the value in a register at a given address"""
         # Look backwards for register assignment
         prev_ea = idc.prev_head(ea)
@@ -445,8 +499,8 @@ class DataFlowAnalyzer(XrefAnalyzer):
             if mnem == "mov":
                 dst_type = idc.get_operand_type(prev_ea, 0)
                 if dst_type == idc.o_reg:
-                    dst_reg = idc.get_operand_value(prev_ea, 0)
-                    if dst_reg == reg:
+                    dst_reg = idc.print_operand(prev_ea, 0)
+                    if dst_reg.lower() == str(reg).lower():
                         src_type = idc.get_operand_type(prev_ea, 1)
                         if src_type == idc.o_imm:
                             return idc.get_operand_value(prev_ea, 1)

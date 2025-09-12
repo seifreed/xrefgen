@@ -157,7 +157,10 @@ class IDA91Analyzer(XrefAnalyzer):
                             try:
                                 if ida_funcs.get_func(ea):
                                     return True
-                                return idc.is_code(idc.get_full_flags(ea))
+                                flags = idc.get_full_flags(ea)
+                                if flags == idc.BADADDR:
+                                    return False
+                                return idc.is_code(flags)
                             except Exception:
                                 return False
 
@@ -178,9 +181,12 @@ class IDA91Analyzer(XrefAnalyzer):
                                         if idx.op == hx.cot_num:
                                             i = int(idx.n._value)
                                             entry = base_ea + i * self._ptr_size()
-                                            val = idc.get_qword(entry) if self._ptr_size() == 8 else idc.get_wide_dword(entry)
-                                            if val and self._is_code(val):
-                                                return val
+                                            try:
+                                                val = idc.get_qword(entry) if self._ptr_size() == 8 else idc.get_wide_dword(entry)
+                                                if val and val != idc.BADADDR and self._is_code(val):
+                                                    return val
+                                            except Exception:
+                                                pass
                                 return None
                             except Exception:
                                 return None
@@ -222,15 +228,21 @@ class IDA91Analyzer(XrefAnalyzer):
                                     # If we recovered a field offset, try base+offset
                                     if isinstance(offset, int) and offset >= 0:
                                         addr = base_ea + offset
-                                        val = idc.get_qword(addr) if self._ptr_size() == 8 else idc.get_wide_dword(addr)
-                                        if val and self._is_code(val):
-                                            return val
+                                        try:
+                                            val = idc.get_qword(addr) if self._ptr_size() == 8 else idc.get_wide_dword(addr)
+                                            if val and val != idc.BADADDR and self._is_code(val):
+                                                return val
+                                        except Exception:
+                                            pass
                                     # Heuristic: vtable-like bases
-                                    name = idc.get_name(base_ea) or ''
-                                    if 'vtable' in name.lower() or 'vfptr' in name.lower() or 'vftable' in name.lower():
-                                        val = idc.get_qword(base_ea) if self._ptr_size() == 8 else idc.get_wide_dword(base_ea)
-                                        if val and self._is_code(val):
-                                            return val
+                                    try:
+                                        name = idc.get_name(base_ea) or ''
+                                        if 'vtable' in name.lower() or 'vfptr' in name.lower() or 'vftable' in name.lower():
+                                            val = idc.get_qword(base_ea) if self._ptr_size() == 8 else idc.get_wide_dword(base_ea)
+                                            if val and val != idc.BADADDR and self._is_code(val):
+                                                return val
+                                    except Exception:
+                                        pass
                                 return None
                             except Exception:
                                 return None

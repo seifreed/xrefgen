@@ -8,9 +8,11 @@ Version: 2.0
 """
 
 import sys
+import builtins
 import os
 import time
 import argparse
+from datetime import datetime
 from typing import Dict, List, Any, Tuple
 
 # Add modules to path
@@ -43,18 +45,67 @@ from modules.performance.optimizer import PerformanceOptimizer
 # from modules.ida_features.ida91 import IDA91Analyzer
 # from modules.interactive.preview import InteractiveAnalyzer
 
+_DEBUG_LOG_PATH = None
+
+
+def _set_debug_log_from_binary(bin_path: str):
+    global _DEBUG_LOG_PATH
+    try:
+        base_dir = os.path.dirname(bin_path) if bin_path else os.getcwd()
+        _DEBUG_LOG_PATH = os.path.join(base_dir, "_xrefgen_debug.log")
+    except Exception:
+        _DEBUG_LOG_PATH = None
+
+
+def _dbg_log(msg: str):
+    try:
+        if _DEBUG_LOG_PATH:
+            ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            with open(_DEBUG_LOG_PATH, 'a', encoding='utf-8', errors='ignore') as _f:
+                _f.write(f"[{ts}] {msg}\n")
+    except Exception:
+        pass
+
+
+def _install_safe_print():
+    """Install a print() shim that avoids MSVCRT format pitfalls in IDA.
+    Routes through ida_kernwin.msg("%s") to prevent stray %% interpretation
+    and mitigates codepage issues with non-ASCII by best-effort str().
+    """
+    try:
+        import idaapi as _ia
+    except Exception:
+        return
+
+    def _safe_print(*args, sep=' ', end='\n', file=None, flush=False):
+        try:
+            s = sep.join(str(a) for a in args)
+        except Exception:
+            try:
+                s = sep.join(repr(a) for a in args)
+            except Exception:
+                s = "<print failure>"
+        try:
+            _ia.msg("%s", s)
+            if end:
+                _ia.msg("%s", end)
+        except Exception:
+            # Last resort: write to original stdout if available
+            try:
+                sys.__stdout__.write(s + end)
+            except Exception:
+                pass
+
+    builtins.print = _safe_print
+
+
 class XrefGen:
     """Main XrefGen orchestrator"""
     
     def __init__(self, config_file: str = None):
         """Initialize XrefGen with configuration"""
-        print("""
-╔══════════════════════════════════════════════════════════════╗
-║                    XrefGen v2.0                              ║
-║     Advanced Cross-Reference Generator for IDA Pro           ║
-║            Author: Marc Rivero | @seifreed                   ║
-╚══════════════════════════════════════════════════════════════╝
-        """)
+        print("XrefGen v2.0 - Advanced Cross-Reference Generator for IDA Pro")
+        print("Author: Marc Rivero (@seifreed)")
         
         # Load configuration
         self.config = Config(config_file)
@@ -129,14 +180,22 @@ class XrefGen:
     def run(self, modules: List[str] = None, incremental: bool = None):
         """Run the cross-reference generation"""
         self.start_time = time.time()
-        
+        try:
+            bin_path = ida_nalt.get_input_file_path()
+        except Exception:
+            bin_path = None
+        _set_debug_log_from_binary(bin_path)
+        _dbg_log("run() started")
+
         print("\n[XrefGen] Starting analysis...")
         print(f"[XrefGen] Binary: {ida_nalt.get_input_file_path()}")
         print(f"[XrefGen] Architecture: {self._get_arch_name()}")
+        _dbg_log("after header")
         
         # Wait for auto-analysis to complete
         if not self._wait_for_analysis():
             print("[XrefGen] Warning: IDA analysis not complete, results may be incomplete")
+        _dbg_log("auto-analysis ready")
         
         # Check for incremental analysis
         if incremental is None:
@@ -153,10 +212,12 @@ class XrefGen:
         # Run analysis with performance optimization (sequential and main-thread safe)
         if self.config.get('modules.performance.enabled'):
             print("[XrefGen] Running analysis...")
+            _dbg_log("starting optimizer.analyze_sequential")
             results_by_module = self.optimizer.analyze_sequential(
                 self.manager.modules,
                 modified_only=incremental
             )
+            _dbg_log("optimizer.analyze_sequential finished")
 
             # Combine results from modules
             all_results = []
@@ -175,11 +236,13 @@ class XrefGen:
         
         # Save results
         output_file = self.config.get('general.output_file', '_user_xrefs.txt')
+        _dbg_log(f"saving results to {output_file}")
         self._save_results(filtered_results, output_file)
         
         # Save cache if enabled
         if self.config.get('modules.performance.use_cache'):
             self.optimizer.save_cache()
+        _dbg_log("run() finished successfully")
         
         self.end_time = time.time()
         
@@ -304,11 +367,16 @@ class XrefGen:
             "Exit"
         ]
         
-        choice = ida_kernwin.choose_choose(
-            choices,
-            "XrefGen - Select Action",
-            1
-        )
+        # IDA 9.1: use choose_from_list to avoid vararg format pitfalls
+        try:
+            choice = ida_kernwin.choose_from_list(
+                choices,
+                "XrefGen - Select Action",
+                0
+            )
+        except Exception:
+            # Fallback: simple Yes/No/Cancel style prompts aren't suitable here; default to run full
+            choice = 0
         
         if choice == 0:  # Run full analysis
             self.run(incremental=False)
@@ -331,15 +399,24 @@ class XrefGen:
         module_names = [m.get_name() for m in self.manager.modules]
         
         # Create checkboxes for each module
-        selected = ida_kernwin.choose_choose(
-            module_names,
-            "Select modules to run",
-            ida_kernwin.CH_MULTI
-        )
-        
-        if selected:
-            selected_names = [module_names[i] for i in selected]
-            self.run(modules=selected_names)
+        try:
+            # choose_from_list doesn't support multi-select; ask one-by-one
+            selected_names = []
+            remaining = list(module_names)
+            while remaining:
+                idx = ida_kernwin.choose_from_list(
+                    [f"[ ] {n}" for n in remaining] + ["<Run>"],
+                    "Select modules to add (choose <Run> to proceed)",
+                    0
+                )
+                if idx is None or idx < 0 or idx >= len(remaining):
+                    break
+                selected_names.append(remaining.pop(idx))
+            if selected_names:
+                self.run(modules=selected_names)
+        except Exception:
+            # On any UI error, run all modules
+            self.run(modules=None)
     
     def _configure_dialog(self):
         """Show configuration dialog"""
@@ -361,7 +438,11 @@ Cache Size: {stats['cache_size_mb']:.2f} MB
 Modules Registered: {len(self.manager.modules)}
         """
         
-        ida_kernwin.info(msg)
+        # Use safe vararg pattern to avoid CRT format parsing
+        try:
+            ida_kernwin.info("%s", str(msg))
+        except Exception:
+            print(msg)
 
 
 def main():
@@ -372,6 +453,24 @@ def main():
     except ImportError:
         print("Error: This script must be run from within IDA Pro")
         return
+    # Suppress MSVCRT invalid parameter popups on Windows to avoid disruptive dialogs
+    try:
+        if os.name == 'nt':
+            import ctypes
+            PVF = ctypes.WINFUNCTYPE(None, ctypes.c_wchar_p, ctypes.c_wchar_p, ctypes.c_wchar_p, ctypes.c_uint, ctypes.c_uint)
+            def _noop_invalid_param_handler(expr, func, file, line, pReserved):
+                return
+            _cb = PVF(_noop_invalid_param_handler)
+            ctypes.cdll.msvcrt._set_invalid_parameter_handler(_cb)
+            try:
+                # Disable abort message box/report fault
+                ctypes.cdll.msvcrt._set_abort_behavior(0, 0x1 | 0x2)
+            except Exception:
+                pass
+    except Exception:
+        pass
+    # Install safe print shim early so all subsequent prints are safe
+    _install_safe_print()
     
     # Parse arguments (if any)
     parser = argparse.ArgumentParser(description="XrefGen - Advanced Cross-Reference Generator")
@@ -386,6 +485,11 @@ def main():
     
     # Create XrefGen instance
     xrefgen = XrefGen(config_file=args.config)
+    # Wire optimizer logger to file logger
+    try:
+        xrefgen.optimizer.logger = _dbg_log
+    except Exception:
+        pass
     
     # Clear cache if requested
     if args.clear_cache:

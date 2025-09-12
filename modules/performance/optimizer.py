@@ -44,6 +44,15 @@ class PerformanceOptimizer:
         # Track modifications
         self.modified_functions = set()
         self.last_analysis_time = time.time()
+        # Optional logger callable
+        self.logger = None
+
+    def _log(self, msg: str):
+        try:
+            if callable(self.logger):
+                self.logger(msg)
+        except Exception:
+            pass
         
     def _calculate_binary_hash(self) -> str:
         """Calculate hash of the binary for cache invalidation"""
@@ -208,6 +217,7 @@ class PerformanceOptimizer:
             target_functions = set(idautils.Functions())
 
         print(f"[XrefGen] Analyzing {len(target_functions)} functions with {len(analyzers)} modules")
+        self._log(f"Analyzing {len(target_functions)} functions with {len(analyzers)} modules")
 
         # Run each analyzer sequentially
         for analyzer in analyzers:
@@ -217,11 +227,14 @@ class PerformanceOptimizer:
                 funcs = set(idautils.Functions())
 
             try:
+                self._log(f"Starting {analyzer.get_name()}")
                 module_results = self._run_analyzer_cached(analyzer, funcs)
                 results[analyzer.get_name()] = module_results
                 print(f"[XrefGen] {analyzer.get_name()} completed with {len(module_results)} results")
+                self._log(f"Completed {analyzer.get_name()} with {len(module_results)} results")
             except Exception as e:
                 print(f"[XrefGen] Error in {analyzer.get_name()}: {e}")
+                self._log(f"Error in {analyzer.get_name()}: {e}")
                 results[analyzer.get_name()] = []
 
         # Save cache after analysis

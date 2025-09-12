@@ -5,7 +5,7 @@ Detects platform and exposes argument/return register sets
 
 from typing import List
 import ida_ida
-import ida_nalt
+import ida_loader
 
 
 def is_64bit() -> bool:
@@ -18,7 +18,21 @@ def procname() -> str:
 
 def platform() -> str:
     """Return 'windows' | 'linux' | 'mac' | 'unknown' based on file type."""
-    ftn = ida_nalt.get_file_type_name().lower()
+    try:
+        ftn = ida_loader.get_file_type_name().lower()
+    except AttributeError:
+        # Fallback for older IDA versions or API changes
+        try:
+            import ida_nalt
+            ftn = ida_nalt.get_file_type_name().lower()
+        except (AttributeError, ImportError):
+            # If both fail, try to determine from other sources
+            try:
+                import idaapi
+                ftn = idaapi.get_file_type_name().lower()
+            except (AttributeError, ImportError):
+                return 'unknown'
+    
     if 'pe' in ftn or 'portable executable' in ftn:
         return 'windows'
     if 'elf' in ftn:

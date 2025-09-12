@@ -360,12 +360,13 @@ class CrossArchAnalyzer(XrefAnalyzer):
                     if next_ea != idc.BADADDR:
                         next_mnem = idc.print_insn_mnem(next_ea).lower()
                         if next_mnem == "add":
-                            # Calculate full address
-                            offset = idc.get_operand_value(next_ea, 2)
-                            full_addr = page_addr + offset
-                            if self.is_valid_reference(full_addr):
-                                self.add_xref(head, full_addr, "arm64_adrp_add", 0.9)
-                                results.append((head, full_addr, "arm64_adrp_add", 0.9))
+                            # Calculate full address - validate operand exists
+                            if idc.get_operand_type(next_ea, 2) != idc.o_void:
+                                offset = idc.get_operand_value(next_ea, 2)
+                                full_addr = page_addr + offset
+                                if self.is_valid_reference(full_addr):
+                                    self.add_xref(head, full_addr, "arm64_adrp_add", 0.9)
+                                    results.append((head, full_addr, "arm64_adrp_add", 0.9))
         
         return results
     
@@ -477,10 +478,12 @@ class CrossArchAnalyzer(XrefAnalyzer):
                 dst = idc.print_operand(prev_ea, 0)
                 target_reg = idc.print_operand(ea, 0)
                 if dst == target_reg:
-                    low_value = idc.get_operand_value(prev_ea, 2)
-                    full_value = lui_value | low_value
-                    if self.is_valid_reference(full_value):
-                        return full_value
+                    # Validate operand 2 exists before accessing
+                    if idc.get_operand_type(prev_ea, 2) != idc.o_void:
+                        low_value = idc.get_operand_value(prev_ea, 2)
+                        full_value = lui_value | low_value
+                        if self.is_valid_reference(full_value):
+                            return full_value
             
             elif mnem in ["lw", "ld"]:
                 # Load word/doubleword
