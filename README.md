@@ -103,13 +103,15 @@ The generated references are saved in `_user_xrefs.txt` format compatible with M
 - **Modern Language Support**: Optimized for Rust, Go, and C++ binaries
 - **Memory Efficient**: Processes large binaries without excessive memory usage
 - **Duplicate Prevention**: Automatic deduplication of references
+- **Cache TTL**: Cached results can expire (configurable)
 
 ## Installation
 
 1. Clone or download the repository to your local machine
 2. Copy the entire `xrefgen` folder to your IDA Pro scripts directory
-3. Open your target binary in IDA Pro 9.0+
-4. Run the script: `File > Script file...` or `Alt+F7`
+3. Open your target binary in IDA Pro 9.2+
+4. Run as script: `File > Script file...` or `Alt+F7` on `xrefgen.py`
+5. Or install as plugin: copy `xrefgen_plugin.py` to your IDA `plugins/` directory and invoke **XrefGen** from `Edit > Plugins` (default hotkey `Alt-Shift-X`)
 
 ## Usage
 
@@ -118,7 +120,6 @@ The generated references are saved in `_user_xrefs.txt` format compatible with M
 # Run the new modular version with all features
 exec(open("path/to/xrefgen.py").read())
 
-# Or run the legacy v1.2 script
 exec(open("path/to/xref_generator.py").read())
 ```
 
@@ -142,12 +143,11 @@ xgen.run(modules=['DataFlowAnalyzer', 'ObfuscationDetector'])
 xgen.interactive_mode()
 ```
 
-### Legacy Usage (v1.2)
-```python
-# Use the original script for compatibility
-generator = XrefGenerator()
-generator.generate_xrefs()
-```
+### Plugin Usage (IDA 9.2+)
+Once installed, launch **XrefGen** from the plugins menu or use the hotkey. The plugin defaults to interactive mode.
+
+## Extending XrefGen
+See `docs/EXTENDING.md` for a step‑by‑step template to add new analyzers.
 
 ## Output Format
 
@@ -198,6 +198,43 @@ The script generates `_user_xrefs.txt` with the format:
 | `cff_resolved` | Control flow flattening resolved |
 | `opaque_always_taken` | Opaque predicate always taken |
 | `opaque_never_taken` | Opaque predicate never taken |
+| `hub_call` | High-degree (hub) function call edge |
+| `call_cycle` | Mutual call cycle edge |
+| `vtable_entry` | Heuristic vtable entry → function pointer |
+| `stack_string_arg` | Call with stack-constructed string argument |
+| `heap_string_arg` | Call with heap-constructed string argument |
+| `trampoline` | Small wrapper/jump trampoline |
+| `mips_plt_call` | MIPS call into PLT entry |
+| `anti_analysis` | Anti-analysis instruction/API pattern |
+
+### Additional Exports
+Besides `_user_xrefs.txt`, XrefGen also writes:
+- `_user_xrefs.json` (structured export for pipelines)
+- `_user_xrefs.csv` (tabular export)
+
+You can customize output filenames via `xrefgen_config.json`:
+```json
+{
+  "general": {
+    "json_output_file": "_user_xrefs.json",
+    "csv_output_file": "_user_xrefs.csv",
+    "taint_kind_output_file": "_user_xrefs_taint.txt",
+    "include_taint_kind_in_txt": true,
+    "slow_functions_report": "_xrefgen_slow.json"
+  }
+}
+```
+
+### Logging
+Structured logs can be enabled via:
+```json
+{
+  "general": {
+    "log_file": "_xrefgen.log",
+    "log_level": "info"
+  }
+}
+```
 | `decrypted_string` | Automatically decrypted string |
 | `arm_blx_indirect` | ARM BLX indirect call |
 | `arm_vtable_call` | ARM vtable call |
@@ -239,7 +276,17 @@ Configure analysis via `xrefgen_config.json`:
         "data_flow": {
             "enabled": true,
             "taint_sources": ["recv", "read", "fread"],
-            "taint_sinks": ["system", "exec", "strcpy"]
+            "taint_sinks": ["system", "exec", "strcpy"],
+            "taint_carrying_apis": ["memcpy", "strcpy"],
+            "heap_alloc_apis": ["malloc", "HeapAlloc"],
+            "use_hexrays_taint": true,
+            "sanitizer_scoped": true,
+            "jump_table_taint": true,
+            "cf_sensitive_sinks": true,
+            "sink_min_confidence": 0.5,
+            "function_timeout_ms": 0,
+            "large_function_threshold": 2000,
+            "large_function_taint_depth": 6
         },
         "obfuscation": {
             "enabled": true,
@@ -284,7 +331,7 @@ Configure analysis via `xrefgen_config.json`:
 ## 📦 Migration from v1.x to v2.0
 
 ### For Basic Users
-- **No changes needed!** The legacy `xref_generator.py` still works
+- Legacy `xref_generator.py` has been removed in the current layout.
 - To use new features, run `xrefgen.py` instead
 
 ### For Advanced Users

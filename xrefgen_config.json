@@ -3,21 +3,73 @@
         "output_file": "_user_xrefs.txt",
         "min_confidence": 0.5,
         "verbose": true,
-        "details_output_file": "_user_xrefs_details.txt"
+        "details_output_file": "_user_xrefs_details.txt",
+        "json_output_file": "_user_xrefs.json",
+        "csv_output_file": "_user_xrefs.csv",
+        "profile_output_file": "_xrefgen_profile.json",
+        "include_taint_kind": true,
+        "taint_kind_output_file": "_user_xrefs_taint.txt",
+        "include_taint_kind_in_txt": true,
+        "txt_format": "xrefer",
+        "txt_include_evidence": false,
+        "output_name_mode": "idb",
+        "slow_functions_report": "_xrefgen_slow.json",
+        "log_file": null,
+        "log_level": "info"
     },
     "modules": {
         "data_flow": {
             "enabled": true,
+            "tuning_table": {
+                "sink_min_confidence": 0.5,
+                "function_timeout_ms": 0,
+                "large_function_threshold": 2000,
+                "large_function_taint_depth": 6,
+                "cfg_complexity_threshold": 200,
+                "cfg_depth_scale": 0.5,
+                "cfg_fanout_threshold": 4,
+                "cfg_loop_penalty": 0.85,
+                "cfg_edge_density_threshold": 2.5,
+                "cfg_loop_nesting_penalty": 0.8,
+                "max_taint_depth": 10,
+                "sanitizer_scoped": true,
+                "jump_table_taint": true,
+                "cf_sensitive_sinks": true,
+                "stack_arg_scan_max_back": 16,
+                "return_value_back_depth": 20,
+                "return_value_forward_depth": 10,
+                "register_resolve_back_depth": 10,
+                "pointer_chain_max_depth": 5
+            },
             "taint_sources": ["recv", "read", "fread", "scanf", "gets", "getchar", "recvfrom", "ReadFile"],
+            "string_sources": ["gets", "fgets", "getline", "scanf", "fscanf", "recv", "read"],
+            "numeric_parsers": ["atoi", "atol", "strtol", "strtoul", "strtoll", "strtoull", "sscanf", "scanf", "fscanf"],
             "taint_sinks": ["system", "exec", "strcpy", "sprintf", "memcpy", "execve", "ShellExecute"],
-            "max_taint_depth": 10
+            "taint_carrying_apis": ["memcpy", "memmove", "strcpy", "strncpy", "strcat", "strncat", "sprintf", "snprintf", "vsprintf", "vsnprintf"],
+            "heap_alloc_apis": ["malloc", "calloc", "realloc", "new", "operator new", "HeapAlloc", "VirtualAlloc"],
+            "use_hexrays_taint": true,
+            "taint_sanitizers": ["memset", "bzero", "strncpy", "strncat"],
+            "taint_interprocedural_depth": 1,
+            "taint_interprocedural_fanout": 5,
+            "stack_arg_win_slots": [0, 8, 16, 24],
+            "sink_exec_keywords": ["exec", "system", "popen", "createprocess"],
+            "sink_string_keywords": ["str", "sprintf", "printf"]
         },
         "obfuscation": {
             "enabled": true,
             "detect_cff": true,
             "detect_opaque_predicates": true,
             "detect_string_encryption": true,
-            "max_dispatcher_size": 1000
+            "detect_anti_analysis": true,
+            "tuning_table": {
+                "cff_min_block_refs": 5,
+                "cff_min_comparisons": 3,
+                "cff_min_jumps": 3,
+                "cff_dispatcher_scan_limit": 20,
+                "cff_dispatcher_scan_window": 256,
+                "max_dispatcher_size": 1000,
+                "cff_resolved_confidence": 0.7
+            }
         },
         "architecture": {
             "enabled": true,
@@ -25,9 +77,42 @@
         },
         "graph": {
             "enabled": true,
-            "max_chain_depth": 20,
-            "cluster_threshold": 0.7,
-            "complexity_threshold": 10
+            "compiler_profile": "auto",
+            "callback_targets": {
+                "qsort": 3,
+                "bsearch": 3,
+                "createthread": 2,
+                "enumwindows": 0,
+                "enumchildwindows": 1
+            },
+            "confidence_table": {
+                "hub_call": 0.6,
+                "call_cycle": 0.55,
+                "trampoline": 0.7,
+                "wrapper_call": 0.6,
+                "callback_arg": 0.75,
+                "seh_handler": 0.7,
+                "vtable_named": 0.65,
+                "vtable_scan": 0.55,
+                "call_chain_base": 1.0,
+                "call_chain_min": 0.6,
+                "call_chain_depth_decay": 0.1
+            },
+            "tuning_table": {
+                "complexity_threshold": 10,
+                "cluster_threshold": 0.7,
+                "hub_threshold": 20,
+                "cycle_max_len": 2,
+                "skip_trivial_size": 16
+            },
+            "indirect_backtrack_depth": 10,
+            "indirect_score_decay": 0.1,
+            "indirect_direct_confidence": 0.95,
+            "indirect_base_confidence": 0.9,
+            "merge_multi_source_bonus": 0.12,
+            "merge_heuristic_penalty": 0.9,
+            "call_chain_decay": 0.98,
+            "call_chain_min_length": 2
         },
         "ml": {
             "enabled": true,
@@ -40,7 +125,11 @@
             "enabled": true,
             "use_cache": true,
             "cache_dir": ".xrefgen_cache",
-            "incremental": true
+            "incremental": true,
+            "cache_ttl_seconds": 3600,
+            "max_function_ms": 0,
+            "skip_slow_functions": false,
+            "skip_slow_graph": true
         },
         "ida_features": {
             "enabled": true,
