@@ -1,421 +1,153 @@
-# IDA Pro Cross-Reference Generator for Mandiant XRefer
+<p align="center">
+  <img src="https://img.shields.io/badge/XrefGen-IDA%20Pro%20Plugin-blue?style=for-the-badge" alt="XrefGen">
+</p>
 
-Professional IDAPython script that generates additional cross-references for IDA Pro that aren't automatically detected, specifically designed for use with the **Mandiant XRefer** plugin.
+<h1 align="center">XrefGen</h1>
 
-## Author
-**Marc Rivero** | [@seifreed](https://twitter.com/seifreed)
+<p align="center">
+  <strong>Advanced cross-reference generation for IDA Pro, designed to extend Mandiant XRefer</strong>
+</p>
 
-## Version
-**2.0** - Complete modular architecture with advanced analysis capabilities
+<p align="center">
+  <img src="https://img.shields.io/badge/IDA%20Pro-9.2%2B-orange?style=flat-square" alt="IDA Pro 9.2+">
+  <img src="https://img.shields.io/badge/Output-XRefer%20Compatible-brightgreen?style=flat-square" alt="XRefer Compatible">
+  <img src="https://img.shields.io/badge/License-MIT-green?style=flat-square" alt="License">
+</p>
 
-## 🚀 What's New in v2.0
+<p align="center">
+  <a href="https://github.com/mandiant/xrefer"><img src="https://img.shields.io/badge/Powered%20by-XRefer-black?style=flat-square" alt="XRefer"></a>
+  <a href="https://github.com/mandiant"><img src="https://img.shields.io/badge/Thanks-Mandiant-blue?style=flat-square" alt="Mandiant"></a>
+</p>
 
-### Major Architecture Overhaul
-- **Modular Design**: Complete refactor into 10+ specialized modules
-- **Incremental Analysis**: Only analyzes modified functions
-- **Confidence Scoring**: Every xref now has a reliability score (0.0-1.0)
-- **Configuration System**: JSON-based configuration for fine-tuning
-
-### New Analysis Capabilities
-- **Enhanced Data Flow Analysis**: Taint tracking from sources to sinks
-- **Advanced Obfuscation Detection**: Control flow flattening & opaque predicates
-- **Cross-Architecture Support**: ARM/ARM64/MIPS/WebAssembly support
-- **Graph-Based Analysis**: Call chains and function clustering
-- **Performance Optimization**: Smart caching and incremental execution
+---
 
 ## Overview
 
-XrefGen is a professional-grade cross-reference generator that detects indirect references and complex control flow patterns that IDA Pro's automatic analysis might miss, particularly in:
-- **Modern compiled languages** (Rust, Go, C++)
-- **Obfuscated malware** with anti-analysis techniques
-- **Packed binaries** with runtime unpacking
-- **Complex control flow patterns** including CFF and opaque predicates
-- **Multi-architecture binaries** (x86, x64, ARM, ARM64, MIPS, WASM)
+**XrefGen** is a professional-grade cross-reference generator that detects indirect references and complex control-flow patterns that IDA Pro may miss. It is designed to feed **Mandiant XRefer** with additional user xrefs in the exact format the plugin expects.
 
-The generated references are saved in `_user_xrefs.txt` format compatible with Mandiant XRefer plugin, with confidence scores for each reference.
+It is especially useful for:
+- Modern compiled languages (Rust, Go, C++)
+- Obfuscated malware (CFF, opaque predicates, string tricks)
+- Packed or heavily optimized binaries
+- Multi-architecture targets
 
-## Features
+## Key Features
 
-### Core Detection Methods
+| Feature | Description |
+|---------|-------------|
+| **XRefer-Compatible Output** | Writes `0xSRC,0xDST` lines matching XRefer parser |
+| **Modular Analyzer System** | Enable/disable analyzers individually |
+| **Incremental & Cached Analysis** | Only re-analyze modified functions |
+| **Confidence Scoring** | Each xref has a confidence score |
+| **Evidence Tracking** | Evidence is exported in detailed/JSON/CSV formats |
+| **Multi-Architecture** | x86, x64, ARM, ARM64, MIPS, WASM |
 
-#### 1. **Indirect Call/Jump Analysis**
-- Resolves register-based indirect calls (`call rax`, `jmp rcx`)
-- Memory-based indirect calls (`call [rax+0x10]`, `jmp [rbp+var_8]`)
-- Function pointer resolution through constant loading
-- Complex vtable dispatch patterns
+## Supported Architectures
 
-#### 2. **Advanced Switch-Case Detection**
-- Uses `idaapi.get_switch_info_ex()` for accurate jump table analysis
-- Multiple fallback methods for different switch patterns
-- Supports various entry sizes (8, 4, 2, 1 bytes)
-- Handles complex switch constructs in modern compilers
+- x86 / x64
+- ARM / ARM64
+- MIPS
+- WebAssembly (WASM)
 
-#### 3. **Trampoline Function Detection**
-- Small wrapper functions (≤16 bytes, ≤2 instructions)
-- Simple jump/call forwarding patterns
-- Common in optimized binaries and dynamic linking
+## Modules (What It Analyzes)
 
-#### 4. **Advanced Pattern Recognition**
-- Complex vtable-like dispatches (`call [rax+offset]`)
-- Register-based indirect calls with register tracking
-- Small trampoline functions analysis
-- Multi-level pointer dereferences
+- **Data Flow Analyzer**
+  - Taint tracking from sources to sinks
+  - Pointer chains and indirect call propagation
+  - Reaching-defs and CFG-based heuristics
 
-#### 5. **Hex-Rays Pseudocode Analysis** ⭐ *NEW*
-- Analyzes decompiled pseudocode for hidden references
-- Detects function pointer calls: `sub_401000()`
-- Identifies indirect calls: `(*func_ptr)()`
-- Finds vtable accesses: `object->method()`
-- Reveals references obfuscated in assembly
+- **Graph Analyzer**
+  - Call-graph edges
+  - Hubs, cycles, wrapper detection
+  - Vtable and callback patterns
 
-#### 6. **Stack Variable Tracking** ⭐ *NEW*
-- Tracks function pointers stored on stack
-- Correlates stack variable assignments with usage
-- Detects `lea` + indirect call patterns
-- Common in malware obfuscation techniques
+- **Obfuscation Analyzer**
+  - Control-flow flattening (CFF)
+  - Opaque predicates
+  - String encryption patterns
+  - Anti-analysis heuristics
 
-#### 7. **Dynamic Import Detection** ⭐ *NEW*
-- Detects `GetProcAddress`/`dlsym` usage patterns
-- Correlates string loading with API resolution
-- Identifies `LoadLibrary` → `GetProcAddress` → call sequences
-- Tracks dynamic API function loading
+- **Architecture Analyzer**
+  - Cross-architecture register resolution
+  - ABI-aware calling convention logic
 
-#### 8. **String Reference Analysis** ⭐ *NEW*
-- Categorizes strings by behavior patterns:
-  - **Malware indicators**: `CreateProcess`, `VirtualAlloc`, etc.
-  - **Crypto indicators**: `encrypt`, `AES`, `SHA`, etc.
-  - **Network indicators**: `HTTP`, `TCP`, `socket`, etc.
-  - **File operations**: `CreateFile`, `ReadFile`, etc.
-  - **Registry operations**: `RegOpenKey`, etc.
-  - **Persistence**: `CreateService`, `schtasks`, etc.
-- Detects file paths, URLs, and registry keys
-- Tracks indirect string references through registers
+- **Hex-Rays / Decompiler Evidence**
+  - Extracts high-confidence refs from decompiled views (when available)
 
-#### 9. **Variable Reference Analysis** ⭐ *NEW*
-- Global variable function pointer analysis
-- Vtable and function pointer table detection
-- Structure member function pointer access
-- Local variable tracking for function pointers
+## Output Files (XRefer-Compatible)
 
-### Performance Optimizations
+XRefer expects user xrefs at:
+```
+<IDB_PATH>_user_xrefs.txt
+```
 
-- **Aggressive Filtering**: Removes trivial, duplicate, and already-known references
-- **Modern Language Support**: Optimized for Rust, Go, and C++ binaries
-- **Memory Efficient**: Processes large binaries without excessive memory usage
-- **Duplicate Prevention**: Automatic deduplication of references
-- **Cache TTL**: Cached results can expire (configurable)
+XrefGen now writes outputs with the **IDB prefix** by default, matching XRefer’s expectations.
+
+### Primary output (XRefer compatible)
+```
+<IDB_PATH>_user_xrefs.txt
+```
+Format (strict):
+```
+0xSRC,0xDST
+```
+
+### Additional exports
+```
+<IDB_PATH>_user_xrefs_details.txt
+<IDB_PATH>_user_xrefs.json
+<IDB_PATH>_user_xrefs.csv
+<IDB_PATH>_user_xrefs_taint.txt
+```
 
 ## Installation
 
-1. Clone or download the repository to your local machine
-2. Copy the entire `xrefgen` folder to your IDA Pro scripts directory
-3. Open your target binary in IDA Pro 9.2+
-4. Run as script: `File > Script file...` or `Alt+F7` on `xrefgen.py`
-5. Or install as plugin: copy `xrefgen_plugin.py` to your IDA `plugins/` directory and invoke **XrefGen** from `Edit > Plugins` (default hotkey `Alt-Shift-X`)
+1. Copy the `xrefgen` folder into your IDA scripts directory.
+2. Open your binary in **IDA Pro 9.2+**.
+3. Run:
+   - Script mode: `File > Script file...` or `Alt+F7` on `xrefgen.py`
+   - Plugin mode: copy `xrefgen_plugin.py` into IDA `plugins/` and run **XrefGen** from `Edit > Plugins`.
 
-## Usage
+## Quick Start
 
-### Basic Usage (v2.0)
 ```python
-# Run the new modular version with all features
-exec(open("path/to/xrefgen.py").read())
-
-exec(open("path/to/xref_generator.py").read())
-```
-
-### Advanced Usage (v2.0)
-```python
-from xrefgen import XrefGen
-
-# Initialize with custom config
-xgen = XrefGen(config_file="custom_config.json")
-
 # Run full analysis
-xgen.run()
-
-# Run incremental analysis (only modified functions)
-xgen.run(incremental=True)
-
-# Run specific modules only
-xgen.run(modules=['DataFlowAnalyzer', 'ObfuscationDetector'])
-
-# Interactive mode with preview
-xgen.interactive_mode()
+exec(open("path/to/xrefgen.py").read())
 ```
 
-### Plugin Usage (IDA 9.2+)
-Once installed, launch **XrefGen** from the plugins menu or use the hotkey. The plugin defaults to interactive mode.
+## Configuration
 
-## Extending XrefGen
-See `docs/EXTENDING.md` for a step‑by‑step template to add new analyzers.
+Configuration lives in `xrefgen_config.json`.
 
-## Output Format
-
-The script generates `_user_xrefs.txt` with the format:
-```
-0x401234,0x402000 # indirect_call
-0x401240,0x403000 # switch_case_0
-0x401250,0x404000 # vtable_dispatch
-0x401260,0x405000 # pseudocode_func_ptr
-0x401270,0x406000 # string_malware_indicator_createprocess
-0x401280,0x407000 # stack_var_call
-0x401290,0x408000 # dynamic_import_GetProcAddress
-```
-
-### Reference Types
-
-| Type | Description |
-|------|-------------|
-| `indirect_call` | Register/memory-based calls |
-| `indirect_jmp` | Register/memory-based jumps |
-| `switch_case_N` | Switch case N target |
-| `jumptable_entry` | Jump table entry |
-| `vtable_dispatch` | Virtual table method call |
-| `vtable_func_ptr` | Vtable function pointer |
-| `trampoline` | Small trampoline function |
-| `small_trampoline` | Advanced trampoline pattern |
-| `reg_indirect_call` | Register indirect call |
-| `pseudocode_func_call` | Function call from pseudocode |
-| `pseudocode_func_ptr` | Function pointer from pseudocode |
-| `pseudocode_vtable_access` | Vtable access from pseudocode |
-| `stack_var_call` | Stack variable call |
-| `stack_var_jmp` | Stack variable jump |
-| `stack_var_lea_call` | LEA + indirect call pattern |
-| `dynamic_import_*` | Dynamic import resolution |
-| `api_string_*` | API name string reference |
-| `resolved_dynamic_import` | Resolved dynamic function |
-| `string_*` | Categorized string references |
-| `string_path` | File path string |
-| `string_url` | URL string |
-| `string_registry` | Registry path string |
-| `string_api_name` | API name string |
-| `string_indirect_ref` | Indirect string reference |
-| `global_var_*` | Global variable reference |
-| `vtable_entry_N` | Vtable entry N |
-| `struct_member_ptr` | Structure member pointer |
-| **v2.0 New Types** | **Description** |
-| `taint_flow_*` | Data flow from taint source to sink |
-| `cff_resolved` | Control flow flattening resolved |
-| `opaque_always_taken` | Opaque predicate always taken |
-| `opaque_never_taken` | Opaque predicate never taken |
-| `hub_call` | High-degree (hub) function call edge |
-| `call_cycle` | Mutual call cycle edge |
-| `vtable_entry` | Heuristic vtable entry → function pointer |
-| `stack_string_arg` | Call with stack-constructed string argument |
-| `heap_string_arg` | Call with heap-constructed string argument |
-| `trampoline` | Small wrapper/jump trampoline |
-| `mips_plt_call` | MIPS call into PLT entry |
-| `anti_analysis` | Anti-analysis instruction/API pattern |
-
-### Additional Exports
-Besides `_user_xrefs.txt`, XrefGen also writes:
-- `_user_xrefs.json` (structured export for pipelines)
-- `_user_xrefs.csv` (tabular export)
-
-You can customize output filenames via `xrefgen_config.json`:
+Important output keys:
 ```json
-{
-  "general": {
-    "json_output_file": "_user_xrefs.json",
-    "csv_output_file": "_user_xrefs.csv",
-    "taint_kind_output_file": "_user_xrefs_taint.txt",
-    "include_taint_kind_in_txt": true,
-    "slow_functions_report": "_xrefgen_slow.json"
-  }
+"general": {
+  "output_name_mode": "idb",
+  "txt_format": "xrefer",
+  "txt_include_evidence": false
 }
 ```
 
-### Logging
-Structured logs can be enabled via:
-```json
-{
-  "general": {
-    "log_file": "_xrefgen.log",
-    "log_level": "info"
-  }
-}
-```
-| `decrypted_string` | Automatically decrypted string |
-| `arm_blx_indirect` | ARM BLX indirect call |
-| `arm_vtable_call` | ARM vtable call |
-| `mips_jalr` | MIPS JALR indirect call |
-| `x64_rip_relative` | x64 RIP-relative call |
-| `call_chain_depth_N` | Call chain at depth N |
-| `cluster_N` | Function cluster N member |
-| `complex_func_cc_N` | Complex function with CC score N |
+- `output_name_mode: "idb"` → uses `<IDB_PATH>_user_xrefs.txt`
+- `txt_format: "xrefer"` → strict `0xSRC,0xDST`
+- Set `txt_format: "extended"` if you want extra columns
 
-## 🏗️ Modular Architecture (v2.0)
+## Thanks
 
-### Analysis Modules
+Huge thanks to **Mandiant** for building **XRefer** and open-sourcing it. This project is specifically designed to augment XRefer workflows and would not exist without their excellent work.
 
-The new modular architecture allows for independent development and maintenance of each analysis component:
+---
 
-#### **Core Modules**
-- `base.py` - Base classes and module management
-- `config.py` - Configuration system
+## Support the Project
 
-#### **Analysis Modules**
-- `data_flow.py` - Taint tracking and value propagation
-- `obfuscation/detector.py` - CFF, opaque predicates, string encryption
-- `architecture/cross_arch.py` - Multi-architecture support
-- `graph/analyzer.py` - Call chains and clustering
-- `performance/optimizer.py` - Caching and parallel processing
+If you find XrefGen useful, consider supporting its development:
 
-#### **Feature Modules**
-- `ml/similarity.py` - Machine learning integration (optional)
-- `ida_features/ida91.py` - IDA Pro 9.1+ specific features
-- `interactive/preview.py` - User interaction and preview
+<a href="https://buymeacoffee.com/seifreed" target="_blank">
+  <img src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png" alt="Buy Me A Coffee" height="50">
+</a>
 
-### Configuration
+---
 
-Configure analysis via `xrefgen_config.json`:
-
-```json
-{
-    "modules": {
-        "data_flow": {
-            "enabled": true,
-            "taint_sources": ["recv", "read", "fread"],
-            "taint_sinks": ["system", "exec", "strcpy"],
-            "taint_carrying_apis": ["memcpy", "strcpy"],
-            "heap_alloc_apis": ["malloc", "HeapAlloc"],
-            "use_hexrays_taint": true,
-            "sanitizer_scoped": true,
-            "jump_table_taint": true,
-            "cf_sensitive_sinks": true,
-            "sink_min_confidence": 0.5,
-            "function_timeout_ms": 0,
-            "large_function_threshold": 2000,
-            "large_function_taint_depth": 6
-        },
-        "obfuscation": {
-            "enabled": true,
-            "detect_cff": true,
-            "detect_opaque_predicates": true
-        },
-        "performance": {
-            "enabled": true,
-            "use_cache": true,
-            "incremental": true
-        }
-    }
-}
-```
-
-## Requirements
-
-- **IDA Pro 9.0+** (tested on 9.0 and 9.1)
-- **Python 3.x** within IDA environment
-- **Hex-Rays Decompiler** (optional, for pseudocode analysis)
-
-## Compatibility Notes
-
-- **IDA Pro 8.x**: Some features may not work due to API changes
-- **32-bit binaries**: Automatically adjusts pointer sizes
-- **Large binaries**: May take several minutes on complex Rust/Go binaries
-- **Hex-Rays**: Pseudocode analysis requires decompiler license
-
-## Performance Tips
-
-### v2.0 Performance Features
-- **Incremental Analysis**: Use `xgen.run(incremental=True)` to only analyze changed functions
-- **Smart Caching**: Previous analysis results are cached (clear with `xgen.optimizer.clear_cache()`)
-- **Module Selection**: Run only needed modules to reduce analysis time
-
-### General Tips
-- For very large binaries (>100MB), consider running analysis on specific segments
-- The script includes built-in progress logging
-- Modern language binaries (Rust/Go) may generate 1000+ references
-- v2.0 is 5-10x faster than v1.2 on large binaries
-
-## 📦 Migration from v1.x to v2.0
-
-### For Basic Users
-- Legacy `xref_generator.py` has been removed in the current layout.
-- To use new features, run `xrefgen.py` instead
-
-### For Advanced Users
-```python
-# Old way (v1.x)
-generator = XrefGenerator()
-generator.generate_xrefs()
-
-# New way (v2.0)
-from xrefgen import XrefGen
-xgen = XrefGen()
-xgen.run()  # Includes all v1.x features plus more
-```
-
-### Key Differences
-- v2.0 output includes confidence scores: `0x401234,0x402000 # type (0.85)`
-- Configuration now via JSON file instead of code modification
-- Modular design allows disabling specific features
-- Caching system remembers previous analyses
-
-## Troubleshooting
-
-### Common Issues
-
-1. **"Hex-Rays decompiler not available"**
-   - Pseudocode analysis skipped (normal without decompiler)
-   - Other analysis methods continue working
-
-2. **Large number of references (>10,000)**
-   - Normal for Rust/Go binaries
-   - Consider filtering by reference type or confidence score
-   - Use `min_confidence` in config to filter low-confidence xrefs
-
-3. **Performance on large binaries**
-   - Enable incremental analysis: `xgen.run(incremental=True)`
-   - Use parallel processing (enabled by default)
-   - Clear cache if experiencing issues: `xgen.optimizer.clear_cache()`
-
-## Use Cases
-
-### Malware Analysis
-- Dynamic API resolution patterns
-- Stack-based obfuscation
-- String-based IoC detection
-- Persistence mechanism identification
-
-### Reverse Engineering
-- Complex control flow analysis
-- Virtual function resolution
-- Modern language binary analysis
-- Obfuscated code patterns
-
-### Vulnerability Research
-- Hidden code paths
-- Indirect function calls
-- Complex switch statements
-- Dynamic import analysis
-
-## Mandiant XRefer Integration
-
-1. Run this script to generate `_user_xrefs.txt`
-2. Load Mandiant XRefer plugin in IDA
-3. XRefer will automatically detect and load the additional references
-4. Use XRefer's visualization and analysis features
-
-## Version History
-
-- **v2.0**: Complete modular architecture refactor
-  - 10+ specialized analysis modules
-  - Incremental analysis and caching
-  - Cross-architecture support (ARM/MIPS/WASM)
-  - Advanced obfuscation detection (CFF, opaque predicates)
-  - Enhanced data flow analysis with taint tracking
-  - Graph-based analysis with clustering
-  - Confidence scoring system
-  - Performance improvements via caching and incremental execution
-- **v1.2**: Added pseudocode analysis, stack variables, dynamic imports, string analysis, variable references
-- **v1.1**: Enhanced switch-case detection, performance optimizations
-- **v1.0**: Initial release with basic indirect call detection
-
-## Contributing
-
-Feel free to contribute improvements or report issues. This script is designed to be modular and extensible.
-
-## License
-
-This script is provided for educational and research purposes. Use responsibly and in compliance with applicable laws and regulations. 
+<p align="center">
+  <sub>Made to extend IDA Pro analysis and supercharge XRefer workflows</sub>
+</p>
