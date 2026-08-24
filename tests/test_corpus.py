@@ -18,4 +18,8 @@ def test_corpus_manifest_covers_real_fixture_families_and_variants():
     assert any(fixture.get("target", "").startswith("mips") for fixture in fixtures)
     assert any("opaque" in fixture["name"] for fixture in fixtures)
     assert all((CORPUS / fixture["source"]).is_file() for fixture in fixtures)
+    assert all(
+        (CORPUS / fixture.get("ground_truth", "negative_no_new_xrefs.ground_truth.json")).is_file()
+        for fixture in fixtures
+    )
     assert (CORPUS / "arm64_function_pointer_positive.ground_truth.json").is_file()

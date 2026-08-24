@@ -1,9 +1,9 @@
 # XrefGen Corpus
 
 Each fixture has a ground-truth JSON file consumed by
-`scripts/compare_ground_truth.py`. The current fixture is a negative ARM64
-regression: IDA already records the indirect function-pointer reference, so
-XrefGen must export no duplicate xref.
+`scripts/compare_ground_truth.py`. Fixtures without a calibrated positive
+mapping use `negative_no_new_xrefs.ground_truth.json` as a duplicate-xref
+baseline; the ARM64 fixture is also retained as a concrete negative regression.
 
 The symbolic positive fixture can be run inside IDA with
 `XREFGEN_ROOT=/path/to/xrefgen XREFGEN_EXPECTED_JSON=... scripts/ida_corpus_tests.py`;
