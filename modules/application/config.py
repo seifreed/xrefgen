@@ -8,7 +8,7 @@ from typing import Dict, Any, List
 class Config:
     """Configuration manager for XrefGen."""
 
-    DEFAULT_CONFIG = {
+    DEFAULT_CONFIG: Dict[str, Any] = {
         "general": {
             "output_file": "_user_xrefs.txt",
             "min_confidence": 0.5,
@@ -24,6 +24,9 @@ class Config:
             "txt_include_evidence": False,
             "output_name_mode": "idb",
             "slow_functions_report": "_xrefgen_slow.json",
+            "findings_output_file": "_xrefgen_findings.json",
+            "relationships_output_file": "_xrefgen_relationships.json",
+            "rejections_output_file": "_xrefgen_rejections.json",
             "log_file": None,
             "log_level": "info",
         },
@@ -52,11 +55,48 @@ class Config:
                     "pointer_chain_max_depth": 5,
                 },
                 "taint_sources": ["recv", "read", "fread", "scanf", "gets"],
-                "string_sources": ["gets", "fgets", "getline", "scanf", "fscanf", "recv", "read"],
-                "numeric_parsers": ["atoi", "atol", "strtol", "strtoul", "strtoll", "strtoull", "sscanf", "scanf", "fscanf"],
+                "string_sources": [
+                    "gets",
+                    "fgets",
+                    "getline",
+                    "scanf",
+                    "fscanf",
+                    "recv",
+                    "read",
+                ],
+                "numeric_parsers": [
+                    "atoi",
+                    "atol",
+                    "strtol",
+                    "strtoul",
+                    "strtoll",
+                    "strtoull",
+                    "sscanf",
+                    "scanf",
+                    "fscanf",
+                ],
                 "taint_sinks": ["system", "exec", "strcpy", "sprintf", "memcpy"],
-                "taint_carrying_apis": ["memcpy", "memmove", "strcpy", "strncpy", "strcat", "strncat", "sprintf", "snprintf", "vsprintf", "vsnprintf"],
-                "heap_alloc_apis": ["malloc", "calloc", "realloc", "new", "operator new", "HeapAlloc", "VirtualAlloc"],
+                "taint_carrying_apis": [
+                    "memcpy",
+                    "memmove",
+                    "strcpy",
+                    "strncpy",
+                    "strcat",
+                    "strncat",
+                    "sprintf",
+                    "snprintf",
+                    "vsprintf",
+                    "vsnprintf",
+                ],
+                "heap_alloc_apis": [
+                    "malloc",
+                    "calloc",
+                    "realloc",
+                    "new",
+                    "operator new",
+                    "HeapAlloc",
+                    "VirtualAlloc",
+                ],
                 "use_hexrays_taint": True,
                 "taint_sanitizers": ["memset", "bzero", "strncpy", "strncat"],
                 "taint_interprocedural_depth": 1,
@@ -102,7 +142,7 @@ class Config:
                     "bsearch": 3,
                     "createthread": 2,
                     "enumwindows": 0,
-                    "enumchildwindows": 1
+                    "enumchildwindows": 1,
                 },
                 "confidence_table": {
                     "hub_call": 0.6,
@@ -180,10 +220,10 @@ class Config:
         """Load configuration from file or use defaults."""
         if os.path.exists(self.config_file):
             try:
-                with open(self.config_file, 'r') as f:
+                with open(self.config_file, "r") as f:
                     user_config = json.load(f)
                     return self._merge_configs(self.DEFAULT_CONFIG, user_config)
-            except Exception as e:
+            except (json.JSONDecodeError, KeyError, OSError) as e:
                 print(f"[XrefGen] Error loading config: {e}, using defaults")
                 return self.DEFAULT_CONFIG.copy()
         return self.DEFAULT_CONFIG.copy()
@@ -235,6 +275,9 @@ class Config:
                 "txt_include_evidence": None,
                 "output_name_mode": None,
                 "slow_functions_report": None,
+                "findings_output_file": None,
+                "relationships_output_file": None,
+                "rejections_output_file": None,
             },
             "modules": {
                 "data_flow": {
@@ -321,17 +364,21 @@ class Config:
     def save_config(self):
         """Save current configuration to file."""
         try:
-            with open(self.config_file, 'w') as f:
+            with open(self.config_file, "w") as f:
                 json.dump(self.config, f, indent=4)
             print(f"[XrefGen] Configuration saved to {self.config_file}")
-        except Exception as e:
+        except (IOError, OSError, TypeError) as e:
             print(f"[XrefGen] Error saving config: {e}")
 
     def _merge_configs(self, default: Dict, user: Dict) -> Dict:
         """Recursively merge user config with defaults."""
         result = default.copy()
         for key, value in user.items():
-            if key in result and isinstance(result[key], dict) and isinstance(value, dict):
+            if (
+                key in result
+                and isinstance(result[key], dict)
+                and isinstance(value, dict)
+            ):
                 result[key] = self._merge_configs(result[key], value)
             else:
                 result[key] = value
@@ -339,7 +386,7 @@ class Config:
 
     def get(self, path: str, default: Any = None) -> Any:
         """Get config value by dot-notation path (e.g., 'modules.data_flow.enabled')."""
-        keys = path.split('.')
+        keys = path.split(".")
         value = self.config
         for key in keys:
             if isinstance(value, dict) and key in value:
@@ -350,7 +397,7 @@ class Config:
 
     def set(self, path: str, value: Any):
         """Set config value by dot-notation path."""
-        keys = path.split('.')
+        keys = path.split(".")
         target = self.config
         for key in keys[:-1]:
             if key not in target:

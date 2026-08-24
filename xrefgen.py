@@ -20,6 +20,8 @@ sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 import ida_auto
 import ida_nalt
+import idc
+
 try:
     import ida_ida
 except ImportError:
@@ -35,6 +37,7 @@ from modules.infrastructure.ida.performance.optimizer import PerformanceOptimize
 from modules.presentation.cli import XrefGenPresenter
 from modules.presentation import logger
 from modules.presentation.logger import info as _info, warn as _warn
+from modules.domain.results import ResultStore
 
 _DEBUG_LOG_PATH = None
 
@@ -44,7 +47,7 @@ def _set_debug_log_from_binary(bin_path: str):
     try:
         base_dir = os.path.dirname(bin_path) if bin_path else os.getcwd()
         _DEBUG_LOG_PATH = os.path.join(base_dir, "_xrefgen_debug.log")
-    except Exception:
+    except (TypeError, OSError):
         _DEBUG_LOG_PATH = None
 
 
@@ -52,12 +55,10 @@ def _dbg_log(msg: str):
     try:
         if _DEBUG_LOG_PATH:
             ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            with open(_DEBUG_LOG_PATH, 'a', encoding='utf-8', errors='ignore') as _f:
+            with open(_DEBUG_LOG_PATH, "a", encoding="utf-8", errors="ignore") as _f:
                 _f.write(f"[{ts}] {msg}\n")
-    except Exception:
+    except (IOError, OSError):
         pass
-
-
 
 
 def _install_safe_print():
@@ -67,26 +68,25 @@ def _install_safe_print():
     """
     try:
         import idaapi as _ia
-    except Exception:
+    except ImportError:
         return
 
-    def _safe_print(*args, sep=' ', end='\n', file=None, flush=False):
+    def _safe_print(*args, sep=" ", end="\n", file=None, flush=False):
         try:
             s = sep.join(str(a) for a in args)
-        except Exception:
+        except (TypeError, ValueError):
             try:
                 s = sep.join(repr(a) for a in args)
-            except Exception:
+            except (TypeError, ValueError):
                 s = "<print failure>"
         try:
             _ia.msg("%s", s)
             if end:
                 _ia.msg("%s", end)
-        except Exception:
-            # Last resort: write to original stdout if available
+        except (TypeError, ValueError, AttributeError):
             try:
                 sys.__stdout__.write(s + end)
-            except Exception:
+            except (IOError, OSError, AttributeError):
                 pass
 
     builtins.print = _safe_print
@@ -94,26 +94,28 @@ def _install_safe_print():
 
 class XrefGen:
     """Main XrefGen orchestrator"""
-    
+
     def __init__(self, config_file: str = None):
         """Initialize XrefGen with configuration"""
         print("XrefGen v2.0 - Advanced Cross-Reference Generator for IDA Pro")
         print("Author: Marc Rivero (@seifreed)")
-        
+
         # Load configuration
         self.config = Config(config_file)
         logger.configure(
             self.config.get("general.log_file"),
             self.config.get("general.log_level", "info"),
         )
-        
+
         # Initialize performance optimizer
-        self.optimizer = PerformanceOptimizer(self.config.get_module_config('performance'))
-        
+        self.optimizer = PerformanceOptimizer(
+            self.config.get_module_config("performance")
+        )
+
         # Initialize module manager
         self.manager = ModuleManager(self.config.config)
         self.presenter = XrefGenPresenter(self.config, self.optimizer, self.manager)
-        
+
         # Register all modules
         self._register_modules()
         # Optional throttling for heavy modules
@@ -122,14 +124,14 @@ class XrefGen:
                 if hasattr(module, "get_name") and module.get_name() == "GraphAnalyzer":
                     try:
                         module.enabled = False
-                    except Exception:
+                    except (TypeError, ValueError, AttributeError, RuntimeError):
                         pass
-        
+
         # Statistics
         self.start_time = None
         self.end_time = None
         self.total_xrefs = 0
-        
+
     def _register_modules(self):
         """Register all analysis modules"""
         print("\n[XrefGen] Registering analysis modules...")
@@ -137,22 +139,22 @@ class XrefGen:
             self.manager.register_module(module)
 
         _info(f"Registered {len(self.manager.modules)} modules")
-    
+
     def run(self, modules: List[str] = None, incremental: bool = None):
         """Run the cross-reference generation"""
         self.start_time = time.time()
         try:
             bin_path = ida_nalt.get_input_file_path()
-        except Exception:
+        except (TypeError, ValueError, AttributeError):
             bin_path = None
-        _set_debug_log_from_binary(bin_path)
+        _set_debug_log_from_binary(bin_path if bin_path else "")
         _dbg_log("run() started")
 
         print("\n[XrefGen] Starting analysis...")
         _info(f"Binary: {ida_nalt.get_input_file_path()}")
         _info(f"Architecture: {self._get_arch_name()}")
         _dbg_log("after header")
-        
+
         # Wait for auto-analysis to complete
         if not self._wait_for_analysis():
             _warn("IDA analysis not complete, results may be incomplete")
@@ -163,13 +165,13 @@ class XrefGen:
             if hasattr(module, "refresh_caches"):
                 try:
                     module.refresh_caches()
-                except Exception:
+                except (TypeError, ValueError, AttributeError, RuntimeError):
                     pass
-        
+
         # Check for incremental analysis
         if incremental is None:
-            incremental = self.config.get('modules.performance.incremental', True)
-        
+            incremental = self.config.get("modules.performance.incremental", True)
+
         # Get modified functions if incremental
         modified_functions = set()
         if incremental:
@@ -177,14 +179,16 @@ class XrefGen:
             if not modified_functions:
                 _info("No modified functions detected, skipping analysis")
                 return
-        
+
         # Run analysis with performance optimization (sequential and main-thread safe)
-        if self.config.get('modules.performance.enabled'):
+        if self.config.get("modules.performance.enabled"):
             _info("Running analysis...")
             _dbg_log("starting optimizer.analyze_sequential")
             results_by_module = self.optimizer.analyze_sequential(
                 self.manager.modules,
-                modified_only=incremental
+                modified_only=incremental,
+                selected_modules=modules,
+                modified_functions=modified_functions,
             )
             _dbg_log("optimizer.analyze_sequential finished")
 
@@ -197,11 +201,31 @@ class XrefGen:
             _info("Running analysis without performance optimizer...")
             all_results = self.manager.run_analysis(modules)
             profile = {}
-        
-        # Filter by confidence
-        min_confidence = self.config.get('general.min_confidence', 0.5)
-        filtered_results = [(s, t, typ, conf) for s, t, typ, conf in all_results 
-                           if conf >= min_confidence]
+
+        result_store = ResultStore(
+            source_is_control_flow=self._is_control_flow_source,
+            target_is_executable=self._is_valid_target,
+            already_exists=self._xref_exists,
+        )
+        raw_results_by_module = (
+            results_by_module
+            if self.config.get("modules.performance.enabled")
+            else self.manager.results_by_module
+        )
+        for module_name, module_results in raw_results_by_module.items():
+            for source, target, kind, confidence in module_results:
+                result_store.add(
+                    source,
+                    target,
+                    kind,
+                    confidence,
+                    module=module_name,
+                    evidence=(module_name,),
+                )
+
+        # Export only validated control-flow candidates.
+        min_confidence = self.config.get("general.min_confidence", 0.5)
+        filtered_results = result_store.xrefs(min_confidence)
 
         self.total_xrefs = len(filtered_results)
 
@@ -209,10 +233,11 @@ class XrefGen:
         evidence_types = {}
         taint_kinds = {}
         try:
-            if self.config.get('modules.performance.enabled'):
+            if self.config.get("modules.performance.enabled"):
                 for mod_name, mod_results in results_by_module.items():
                     for s, t, _typ, _conf in mod_results:
                         evidence_types.setdefault((s, t), set()).add(mod_name)
+            evidence_types.update(result_store.evidence())
             for module in self.manager.modules:
                 counts = getattr(module, "evidence_counts", None)
                 types = getattr(module, "evidence_types", None)
@@ -227,98 +252,131 @@ class XrefGen:
                 if tkinds:
                     for key, val in tkinds.items():
                         taint_kinds[key] = val
-        except Exception:
+        except (TypeError, ValueError, AttributeError, KeyError):
             evidence_counts = {}
             evidence_types = {}
             taint_kinds = {}
-        
+
         # Save results
-        output_file = self.config.get('general.output_file', '_user_xrefs.txt')
+        output_file = self.config.get("general.output_file", "_user_xrefs.txt")
         _dbg_log(f"saving results to {output_file}")
         if not self.config.get("general.include_taint_kind", True):
             taint_kinds = {}
-        self.presenter.save_results(filtered_results, evidence_counts, evidence_types, profile, taint_kinds)
+        self.presenter.save_results(
+            filtered_results,
+            evidence_counts,
+            evidence_types,
+            profile,
+            taint_kinds,
+            findings=result_store.findings,
+            relationships=result_store.relationships,
+            rejections=result_store.rejections,
+        )
         try:
             slow_path = self.config.get("general.slow_functions_report")
             if slow_path and profile:
                 import json
+
                 base_dir = os.path.dirname(ida_nalt.get_input_file_path())
                 full = os.path.join(base_dir, slow_path)
                 with open(full, "w", encoding="utf-8") as f_slow:
                     json.dump(profile, f_slow, indent=2)
-        except Exception:
+        except (IOError, OSError, KeyError, TypeError):
             pass
-        
+
         # Save cache if enabled
-        if self.config.get('modules.performance.use_cache'):
-            self.optimizer.save_cache()
+        if self.config.get("modules.performance.use_cache"):
+            self.optimizer.commit_cache()
         _dbg_log("run() finished successfully")
-        
+
         self.end_time = time.time()
-        
+
         # Print statistics
         self._print_statistics()
-    
+
+    def _is_control_flow_source(self, ea: int) -> bool:
+        try:
+            return idc.print_insn_mnem(ea).lower() in {
+                "call", "bl", "blx", "jal", "jalr", "jmp", "b", "br", "blr",
+                "cbz", "cbnz", "tbz", "tbnz",
+            }
+        except (TypeError, ValueError, AttributeError, RuntimeError):
+            return False
+
+    def _is_valid_target(self, ea: int) -> bool:
+        for module in self.manager.modules:
+            validator = getattr(module, "is_valid_reference", None)
+            if callable(validator):
+                return bool(validator(ea))
+        return False
+
+    def _xref_exists(self, source: int, target: int) -> bool:
+        for module in self.manager.modules:
+            checker = getattr(module, "is_already_in_ida", None)
+            if callable(checker):
+                return bool(checker(source, target))
+        return False
+
     def _wait_for_analysis(self, timeout: int = 60) -> bool:
         """Wait for IDA auto-analysis to complete"""
         _info("Waiting for IDA auto-analysis to complete...")
-        
+
         start = time.time()
         while time.time() - start < timeout:
             if ida_auto.auto_is_ok():
                 _info("Auto-analysis complete")
                 return True
             time.sleep(1)
-        
+
         return False
-    
+
     def _get_arch_name(self) -> str:
         """Get architecture name"""
         # Use IDA 9.1 API only
         procname = ida_ida.inf_get_procname().lower()
         is_64 = ida_ida.inf_is_64bit()
-        
-        if 'arm' in procname:
-            return 'ARM64' if is_64 else 'ARM'
-        elif 'mips' in procname:
-            return 'MIPS'
-        elif 'wasm' in procname:
-            return 'WebAssembly'
+
+        if "arm" in procname:
+            return "ARM64" if is_64 else "ARM"
+        elif "mips" in procname:
+            return "MIPS"
+        elif "wasm" in procname:
+            return "WebAssembly"
         elif is_64:
-            return 'x64'
+            return "x64"
         else:
-            return 'x86'
-    
+            return "x86"
+
     def _print_statistics(self):
         """Print analysis statistics"""
         if not self.start_time or not self.end_time:
             return
-        
+
         elapsed = self.end_time - self.start_time
-        
-        print("\n" + "="*60)
+
+        print("\n" + "=" * 60)
         print("                    ANALYSIS COMPLETE")
-        print("="*60)
+        print("=" * 60)
         print(f"  Total cross-references found: {self.total_xrefs}")
         print(f"  Analysis time: {elapsed:.2f} seconds")
         print(f"  Modules executed: {len(self.manager.modules)}")
-        
-        if self.config.get('modules.performance.enabled'):
+
+        if self.config.get("modules.performance.enabled"):
             stats = self.optimizer.get_statistics()
             print("\n  Performance Statistics:")
             print(f"    Cache enabled: {stats['cache_enabled']}")
             print(f"    Incremental analysis: {stats['incremental_enabled']}")
             print(f"    Cached functions: {stats['cached_functions']}")
             print(f"    Cache size: {stats['cache_size_mb']:.2f} MB")
-        
-        print("="*60)
+
+        print("=" * 60)
         print("\n[XrefGen] Use these references with Mandiant XRefer plugin")
-    
+
     def interactive_mode(self):
         """Run in interactive mode with preview"""
         print("\n[XrefGen] Interactive mode")
         choice = self.presenter.show_main_menu()
-        
+
         if choice == 0:  # Run full analysis
             self.run(incremental=False)
         elif choice == 1:  # Run incremental
@@ -334,17 +392,17 @@ class XrefGen:
             self._show_statistics()
         elif choice == 6:  # Exit
             return
-    
+
     def _select_modules_dialog(self):
         """Show module selection dialog"""
         selected_names = self.presenter.select_modules_dialog()
         if selected_names:
             self.run(modules=selected_names)
-    
+
     def _configure_dialog(self):
         """Show configuration dialog"""
         self.presenter.configure_dialog()
-    
+
     def _show_statistics(self):
         """Show analysis statistics"""
         self.presenter.show_statistics()
@@ -355,63 +413,79 @@ def main():
     # Check if running in IDA
     try:
         import importlib.util
+
         if importlib.util.find_spec("idaapi") is None:
             print("Error: This script must be run from within IDA Pro")
             return
-    except Exception:
+    except (ImportError, ModuleNotFoundError):
         print("Error: This script must be run from within IDA Pro")
         return
     # Suppress MSVCRT invalid parameter popups on Windows to avoid disruptive dialogs
     try:
-        if os.name == 'nt':
+        if os.name == "nt":
             import ctypes
-            PVF = ctypes.WINFUNCTYPE(None, ctypes.c_wchar_p, ctypes.c_wchar_p, ctypes.c_wchar_p, ctypes.c_uint, ctypes.c_uint)
+
+            PVF = ctypes.WINFUNCTYPE(
+                None,
+                ctypes.c_wchar_p,
+                ctypes.c_wchar_p,
+                ctypes.c_wchar_p,
+                ctypes.c_uint,
+                ctypes.c_uint,
+            )
+
             def _noop_invalid_param_handler(expr, func, file, line, pReserved):
                 return
+
             _cb = PVF(_noop_invalid_param_handler)
             ctypes.cdll.msvcrt._set_invalid_parameter_handler(_cb)
             try:
                 # Disable abort message box/report fault
                 ctypes.cdll.msvcrt._set_abort_behavior(0, 0x1 | 0x2)
-            except Exception:
+            except (OSError, AttributeError):
                 pass
-    except Exception:
+    except (ImportError, OSError, AttributeError):
         pass
     # Install safe print shim early so all subsequent prints are safe
     _install_safe_print()
-    
+
     # Parse arguments (if any)
-    parser = argparse.ArgumentParser(description="XrefGen - Advanced Cross-Reference Generator")
+    parser = argparse.ArgumentParser(
+        description="XrefGen - Advanced Cross-Reference Generator"
+    )
     parser.add_argument("-c", "--config", help="Configuration file path")
-    parser.add_argument("-i", "--incremental", action="store_true", help="Run incremental analysis")
+    parser.add_argument(
+        "-i", "--incremental", action="store_true", help="Run incremental analysis"
+    )
     parser.add_argument("-m", "--modules", nargs="+", help="Specific modules to run")
-    parser.add_argument("--interactive", action="store_true", help="Run in interactive mode")
-    parser.add_argument("--clear-cache", action="store_true", help="Clear cache before running")
-    
+    parser.add_argument(
+        "--interactive", action="store_true", help="Run in interactive mode"
+    )
+    parser.add_argument(
+        "--clear-cache", action="store_true", help="Clear cache before running"
+    )
+
     # IDA doesn't pass sys.argv properly, so we'll use defaults
     args = parser.parse_args([])  # Empty args for IDA context
-    
+
     # Create XrefGen instance
     xrefgen = XrefGen(config_file=args.config)
     # Wire optimizer logger to file logger
     try:
         xrefgen.optimizer.logger = _dbg_log
-    except Exception:
+    except (AttributeError, TypeError):
         pass
-    
+
     # Clear cache if requested
     if args.clear_cache:
         xrefgen.optimizer.clear_cache()
-    
+
     # Run analysis
     if args.interactive:
         xrefgen.interactive_mode()
     else:
-        xrefgen.run(
-            modules=args.modules,
-            incremental=args.incremental
-        )
-    
+        xrefgen.run(modules=args.modules, incremental=args.incremental)
+
     print("\n[XrefGen] Analysis complete!")
 
 

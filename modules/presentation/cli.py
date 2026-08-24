@@ -5,6 +5,7 @@ import os
 import time
 import json
 import csv
+from dataclasses import asdict, is_dataclass
 import ida_kernwin
 import ida_nalt
 import idc
@@ -33,7 +34,7 @@ class XrefGenPresenter:
                 "XrefGen - Select Action",
                 0,
             )
-        except Exception:
+        except (TypeError, ValueError, AttributeError, RuntimeError):
             return 0
 
     def select_modules_dialog(self):
@@ -51,7 +52,7 @@ class XrefGenPresenter:
                     break
                 selected_names.append(remaining.pop(idx))
             return selected_names
-        except Exception:
+        except (TypeError, ValueError, AttributeError, RuntimeError):
             return []
 
     def configure_dialog(self):
@@ -70,15 +71,28 @@ class XrefGenPresenter:
         )
         try:
             ida_kernwin.info("%s", str(msg))
-        except Exception:
+        except (TypeError, ValueError, AttributeError, RuntimeError):
             print(msg)
 
-    def save_results(self, results: List[Tuple[int, int, str, float]], evidence_counts: dict = None, evidence_types: dict = None, profile: dict = None, taint_kinds: dict = None):
+    def save_results(
+        self,
+        results: List[Tuple[int, int, str, float]],
+        evidence_counts: dict = None,
+        evidence_types: dict = None,
+        profile: dict = None,
+        taint_kinds: dict = None,
+        findings=None,
+        relationships=None,
+        rejections=None,
+    ):
         output_file = self.config.get('general.output_file', '_user_xrefs.txt')
         json_file = self.config.get('general.json_output_file', '_user_xrefs.json')
         csv_file = self.config.get('general.csv_output_file', '_user_xrefs.csv')
         profile_file = self.config.get('general.profile_output_file', '_xrefgen_profile.json')
         taint_txt = self.config.get('general.taint_kind_output_file', '_user_xrefs_taint.txt')
+        findings_file = self.config.get('general.findings_output_file', '_xrefgen_findings.json')
+        relationships_file = self.config.get('general.relationships_output_file', '_xrefgen_relationships.json')
+        rejections_file = self.config.get('general.rejections_output_file', '_xrefgen_rejections.json')
         binary_path = ida_nalt.get_input_file_path()
         base_dir = os.path.dirname(binary_path)
         idb_path = self._get_idb_path(binary_path)
@@ -147,13 +161,24 @@ class XrefGenPresenter:
         self._write_csv(results, csv_path, evidence_counts, evidence_types, taint_kinds)
         if profile:
             self._write_profile(profile, profile_path)
+        self._write_records(findings, findings_file, idb_path, base_dir, output_name_mode)
+        self._write_records(relationships, relationships_file, idb_path, base_dir, output_name_mode)
+        self._write_records(rejections, rejections_file, idb_path, base_dir, output_name_mode)
+
+    def _write_records(self, records, name, idb_path, base_dir, mode):
+        if records is None:
+            return
+        path = self._resolve_output_path(name, idb_path, base_dir, mode)
+        payload = [asdict(record) if is_dataclass(record) else record for record in records]
+        with open(path, "w", encoding="utf-8") as f_records:
+            json.dump(payload, f_records, indent=2, default=list)
 
     def _get_idb_path(self, fallback_binary_path: str) -> str:
         try:
             path = idc.get_idb_path()
             if path:
                 return path
-        except Exception:
+        except (TypeError, ValueError, AttributeError, RuntimeError):
             pass
         return fallback_binary_path
 

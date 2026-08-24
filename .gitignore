@@ -1,0 +1,46 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.so
+*.egg-info/
+.eggs/
+
+# Virtualenv
+venv/
+.venv/
+
+# Tooling/config
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+.bandit
+bandit.yaml
+mypy.ini
+
+# Quality tooling
+.qlty/
+
+# OS
+.DS_Store
+
+# Logs/outputs
+*.log
+_xrefgen_debug.log
+_xrefgen.log
+_xrefgen_profile.json
+_xrefgen_slow.json
+_xrefgen_findings.json
+_xrefgen_relationships.json
+_xrefgen_rejections.json
+
+# XrefGen outputs
+*_user_xrefs.txt
+*_user_xrefs_details.txt
+*_user_xrefs.json
+*_user_xrefs.csv
+*_user_xrefs_taint.txt
+
+# Cache
+.xrefgen_cache/

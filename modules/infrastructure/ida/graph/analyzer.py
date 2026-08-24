@@ -10,12 +10,12 @@ import idc
 import ida_funcs
 try:
     import ida_hexrays
-except Exception:
+except (TypeError, ValueError, AttributeError, RuntimeError):
     ida_hexrays = None
 import ida_segment
 try:
     import ida_typeinf
-except Exception:
+except (TypeError, ValueError, AttributeError, RuntimeError):
     ida_typeinf = None
 from collections import defaultdict, deque
 from modules.infrastructure.ida.performance.optimizer import IncrementalAnalyzer
@@ -34,9 +34,11 @@ class GraphAnalyzer(IncrementalAnalyzer):
     
     def __init__(self, config: Dict = None):
         super().__init__(config)
+        self.analysis_scope = "global"
+        self.supports_incremental = False
         try:
             self._procname = idaapi.get_inf_structure().procname.lower()
-        except Exception:
+        except (TypeError, ValueError, AttributeError, RuntimeError):
             self._procname = ""
         self._tuning_defaults = {
             "complexity_threshold": 10,
@@ -45,6 +47,8 @@ class GraphAnalyzer(IncrementalAnalyzer):
             "cycle_max_len": 2,
             "skip_trivial_size": 16,
             "max_chain_depth": 20,
+            "max_chains_per_entry": 100,
+            "chain_node_budget": 500,
             "max_indirect_targets": 3,
             "min_indirect_confidence": 0.4,
             "vtable_min_len": 3,
@@ -98,6 +102,7 @@ class GraphAnalyzer(IncrementalAnalyzer):
         self._direct_calls = set()
         self._indirect_cache = {}
         self._edges_by_func = {}
+        self._call_edge_results = []
         self._wrapper_detector = WrapperDetector(self)
         self._callback_resolver = CallbackResolver(self)
         self._seh_resolver = SEHResolver(self)
@@ -123,9 +128,11 @@ class GraphAnalyzer(IncrementalAnalyzer):
     def analyze(self) -> List[Tuple[int, int, str, float]]:
         """Perform graph-based analysis"""
         results = []
+        self._call_edge_results = []
         
         # Build call graph
         self._build_call_graph()
+        results.extend(self._call_edge_results)
         self._set_noise_factor()
         
         # Analyze call chains from entry points
@@ -169,7 +176,7 @@ class GraphAnalyzer(IncrementalAnalyzer):
                         if (func_ea, target) in self._direct_calls and conf < 0.95:
                             continue
                         self._add_graph_edge(func_ea, target)
-                        local_results.append(self._add_call_edge_xref(func_ea, target, conf))
+                        local_results.append(self._add_call_edge_xref(head, target, conf))
         return local_results
 
     def _add_graph_edge(self, source: int, target: int):
@@ -179,10 +186,8 @@ class GraphAnalyzer(IncrementalAnalyzer):
 
     def _add_call_edge_xref(self, source: int, target: int, conf: float = 0.9):
         self.add_xref(source, target, "call_edge", conf)
-        try:
+        if hasattr(self, "add_evidence"):
             self.add_evidence(source, target, "graph")
-        except Exception:
-            pass
         return (source, target, "call_edge", conf)
 
     def _analyze_hubs(self) -> List[Tuple[int, int, str, float]]:
@@ -227,6 +232,8 @@ class GraphAnalyzer(IncrementalAnalyzer):
                     for target, _conf in targets:
                         if self.is_valid_reference(target):
                             self._add_graph_edge(func_ea, target)
+                            result = self._add_call_edge_xref(head, target, _conf)
+                            self._call_edge_results.append(result)
                             if idc.get_operand_type(head, 0) == idc.o_near:
                                 self._direct_calls.add((func_ea, target))
 
@@ -303,7 +310,7 @@ class GraphAnalyzer(IncrementalAnalyzer):
             if not func:
                 return []
             cfunc = ida_hexrays.decompile(func.start_ea)
-        except Exception:
+        except (TypeError, ValueError, AttributeError, RuntimeError):
             return []
         results = []
 
@@ -326,14 +333,14 @@ class GraphAnalyzer(IncrementalAnalyzer):
                         elif hasattr(ida_hexrays, "cot_ref") and e.x.op == ida_hexrays.cot_ref:
                             if hasattr(e.x, "x") and hasattr(e.x.x, "obj_ea"):
                                 self.targets.append(e.x.x.obj_ea)
-                except Exception:
+                except (TypeError, ValueError, AttributeError, RuntimeError):
                     pass
                 return 0
 
         v = CallVisitor()
         try:
             v.apply_to(cfunc.body, None)
-        except Exception:
+        except (TypeError, ValueError, AttributeError, RuntimeError):
             return []
         for t in v.targets:
             results.append((t, 0.9))
@@ -385,7 +392,7 @@ class GraphAnalyzer(IncrementalAnalyzer):
                     return "go"
                 if "rust" in name:
                     return "rust"
-        except Exception:
+        except (TypeError, ValueError, AttributeError, RuntimeError):
             pass
         # Fall back to function names
         try:
@@ -399,7 +406,7 @@ class GraphAnalyzer(IncrementalAnalyzer):
                     return "go"
                 if name.startswith("_ZN") or name.startswith("core::"):
                     return "rust"
-        except Exception:
+        except (TypeError, ValueError, AttributeError, RuntimeError):
             pass
         return "unknown"
 
@@ -415,7 +422,7 @@ class GraphAnalyzer(IncrementalAnalyzer):
     def _is_trivial_function(self, func) -> bool:
         try:
             return (func.end_ea - func.start_ea) <= self.skip_trivial_size
-        except Exception:
+        except (TypeError, ValueError, AttributeError, RuntimeError):
             return False
 
     def set_modified_functions(self, modified: Set[int]):
@@ -456,7 +463,7 @@ class GraphAnalyzer(IncrementalAnalyzer):
     def _resolve_from_mem_operand(self, ea: int, op_idx: int = 0) -> Optional[int]:
         try:
             addr = idc.get_operand_value(ea, op_idx)
-        except Exception:
+        except (TypeError, ValueError, AttributeError, RuntimeError):
             addr = None
         if addr is None or addr == idc.BADADDR:
             return None
@@ -465,9 +472,9 @@ class GraphAnalyzer(IncrementalAnalyzer):
             if seg and idc.get_segm_name(addr).lower() in (".got", ".plt", ".idata", ".rdata"):
                 try:
                     self.add_evidence(ea, addr, "global_alias")
-                except Exception:
+                except (TypeError, ValueError, AttributeError, RuntimeError):
                     pass
-        except Exception:
+        except (TypeError, ValueError, AttributeError, RuntimeError):
             pass
         target = self._read_ptr(addr)
         if target and self.is_valid_reference(target):
@@ -477,11 +484,11 @@ class GraphAnalyzer(IncrementalAnalyzer):
     def _read_ptr(self, ea: int) -> Optional[int]:
         try:
             is64 = idaapi.get_inf_structure().is_64bit()
-        except Exception:
+        except (TypeError, ValueError, AttributeError, RuntimeError):
             is64 = False
         try:
             return idc.get_qword(ea) if is64 else idc.get_wide_dword(ea)
-        except Exception:
+        except (TypeError, ValueError, AttributeError, RuntimeError):
             return None
 
     # Wrapper analysis now lives in WrapperDetector.
@@ -532,16 +539,16 @@ class GraphAnalyzer(IncrementalAnalyzer):
                                                             if not mt.is_func():
                                                                 is_rtti = False
                                                                 break
-                                                        except Exception:
+                                                        except (TypeError, ValueError, AttributeError, RuntimeError):
                                                             is_rtti = False
                                                             break
-                                        except Exception:
+                                        except (TypeError, ValueError, AttributeError, RuntimeError):
                                             is_rtti = True
-                                except Exception:
+                                except (TypeError, ValueError, AttributeError, RuntimeError):
                                     is_rtti = True
                             results.append((ea, is_rtti))
                     ea = idc.next_head(ea, seg_end)
-        except Exception:
+        except (TypeError, ValueError, AttributeError, RuntimeError):
             return results
         return results
     
@@ -580,7 +587,7 @@ class GraphAnalyzer(IncrementalAnalyzer):
         return self._entry_finder.find_entry_points()
     
     def _build_chains_from_entry(self, entry: int, max_depth: int = None) -> List[List[int]]:
-        """Build call chains starting from an entry point"""
+        """Build call chains starting from an entry point with analysis budget."""
         if max_depth is None:
             max_depth = self.max_chain_depth
         
@@ -588,7 +595,15 @@ class GraphAnalyzer(IncrementalAnalyzer):
         visited = set()
         current_chain = []
         
+        budget = int(self.tuning_table.get("chain_node_budget", 500))
+        max_chains_per_entry = int(self.tuning_table.get("max_chains_per_entry", 100))
+        self._nodes_visited = 0
+
         def dfs(func_ea: int, depth: int):
+            self._nodes_visited += 1
+            if self._nodes_visited > budget or len(chains) >= max_chains_per_entry:
+                return
+
             if depth > max_depth or func_ea in visited:
                 if len(current_chain) > 1:
                     chains.append(current_chain[:])
@@ -601,6 +616,8 @@ class GraphAnalyzer(IncrementalAnalyzer):
             if func_ea in self.call_graph:
                 for called_func in self.call_graph[func_ea]:
                     dfs(called_func, depth + 1)
+                    if self._nodes_visited > budget or len(chains) >= max_chains_per_entry:
+                        break
             else:
                 # Leaf node - save chain
                 if len(current_chain) > 1:

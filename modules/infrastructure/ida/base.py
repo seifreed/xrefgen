@@ -18,25 +18,31 @@ class IDAXrefAnalyzer(XrefAnalyzer):
         self._valid_ref_cache = {}
 
     def _is_already_in_ida(self, source: int, target: int) -> bool:
-        for xref in idautils.XrefsFrom(source, 0):
-            if xref.to == target:
-                return True
+        try:
+            for xref in idautils.XrefsFrom(source, 0):
+                if xref.to == target:
+                    return True
+        except (TypeError, ValueError, AttributeError, RuntimeError):
+            return False
         return False
 
     def _is_valid_reference(self, target: int) -> bool:
-        seg = ida_segment.getseg(target)
-        if not seg:
-            return False
-        if hasattr(seg, "perm") and hasattr(ida_segment, "SEGPERM_EXEC"):
-            if not (seg.perm & ida_segment.SEGPERM_EXEC):
+        try:
+            seg = ida_segment.getseg(target)
+            if not seg:
                 return False
-        if not idc.is_code(idc.get_full_flags(target)):
+            if hasattr(seg, "perm") and hasattr(ida_segment, "SEGPERM_EXEC"):
+                if not (seg.perm & ida_segment.SEGPERM_EXEC):
+                    return False
+            if not idc.is_code(idc.get_full_flags(target)):
+                return False
+            func = ida_funcs.get_func(target)
+            if func:
+                return True
+            # Fast boundary check instead of iterating all functions per call
+            return self._func_bounds.near_function_start(target, radius=32)
+        except (TypeError, ValueError, AttributeError, RuntimeError):
             return False
-        func = ida_funcs.get_func(target)
-        if func:
-            return True
-        # Fast boundary check instead of iterating all functions per call
-        return self._func_bounds.near_function_start(target, radius=32)
 
     def is_valid_reference(self, target: int) -> bool:
         """Public validation helper for analyzers."""
@@ -68,5 +74,5 @@ class IDAXrefAnalyzer(XrefAnalyzer):
         """Combine source/target confidence into a final score."""
         try:
             return max(0.0, min(1.0, float(source_conf) * float(target_conf)))
-        except Exception:
+        except (TypeError, ValueError, AttributeError, RuntimeError):
             return max(0.0, min(1.0, float(source_conf)))

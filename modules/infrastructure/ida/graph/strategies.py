@@ -28,12 +28,12 @@ class WrapperDetector:
                         call_target = idc.get_operand_value(head, 0)
             if call_count == 1 and call_target and self.a.is_valid_reference(call_target):
                 conf = self.a.confidence("wrapper_call")
-                self.a.add_xref(func_ea, call_target, "wrapper_call", conf)
+                self.a.add_xref(head, call_target, "wrapper_call", conf)
                 try:
-                    self.a.add_evidence(func_ea, call_target, "wrapper")
-                except Exception:
+                    self.a.add_evidence(head, call_target, "wrapper")
+                except (TypeError, ValueError, AttributeError, RuntimeError):
                     pass
-                results.append((func_ea, call_target, "wrapper_call", conf))
+                results.append((head, call_target, "wrapper_call", conf))
         return results
 
 
@@ -65,7 +65,7 @@ class CallbackResolver:
                     self.a.add_xref(head, cb, "callback_arg", conf)
                     try:
                         self.a.add_evidence(head, cb, "callback")
-                    except Exception:
+                    except (TypeError, ValueError, AttributeError, RuntimeError):
                         pass
                     results.append((head, cb, "callback_arg", conf))
         return results
@@ -96,14 +96,14 @@ class SEHResolver:
             while ea < seg_end:
                 try:
                     handler = idc.get_qword(ea) if ptr == 8 else idc.get_wide_dword(ea)
-                except Exception:
+                except (TypeError, ValueError, AttributeError, RuntimeError):
                     handler = 0
                 if handler and self.a.is_valid_reference(handler):
                     conf = self.a.confidence("seh_handler")
                     self.a.add_xref(ea, handler, "seh_handler", conf)
                     try:
                         self.a.add_evidence(ea, handler, "seh")
-                    except Exception:
+                    except (TypeError, ValueError, AttributeError, RuntimeError):
                         pass
                     results.append((ea, handler, "seh_handler", conf))
                 ea += ptr
@@ -119,7 +119,7 @@ class VTableResolver:
         seen_entries = set()
         try:
             ptr_size = 8 if idaapi.get_inf_structure().is_64bit() else 4
-        except Exception:
+        except (TypeError, ValueError, AttributeError, RuntimeError):
             ptr_size = 4
         for vt_start, is_rtti in self.a._find_named_vtables():
             run = []
@@ -127,7 +127,7 @@ class VTableResolver:
             for _ in range(512):
                 try:
                     target = idc.get_qword(ea) if ptr_size == 8 else idc.get_wide_dword(ea)
-                except Exception:
+                except (TypeError, ValueError, AttributeError, RuntimeError):
                     break
                 if target and self.a.is_valid_reference(target):
                     run.append((ea, target))
@@ -144,7 +144,7 @@ class VTableResolver:
                     if is_rtti:
                         try:
                             self.a.add_evidence(entry_ea, func_ptr, "rtti_vtable")
-                        except Exception:
+                        except (TypeError, ValueError, AttributeError, RuntimeError):
                             pass
                     results.append((entry_ea, func_ptr, "vtable_entry", conf))
         for seg_ea in idautils.Segments():
@@ -160,7 +160,7 @@ class VTableResolver:
             while ea < seg_end:
                 try:
                     target = idc.get_qword(ea) if ptr_size == 8 else idc.get_wide_dword(ea)
-                except Exception:
+                except (TypeError, ValueError, AttributeError, RuntimeError):
                     target = 0
                 if target and self.a.is_valid_reference(target):
                     run.append((ea, target))
