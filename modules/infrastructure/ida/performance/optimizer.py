@@ -16,6 +16,11 @@ import ida_bytes
 import ida_segment
 import ida_kernwin
 import ida_nalt
+try:
+    import idaapi
+except ImportError:
+    idaapi = None
+from modules import __version__
 from modules.domain.analyzer import XrefAnalyzer
 from modules.infrastructure.ida.base import IDAXrefAnalyzer
 from modules.infrastructure.ida.utils.function_cache import FunctionBoundsCache
@@ -30,6 +35,8 @@ class PerformanceOptimizer:
         self.cache_dir = self._resolve_cache_dir(config.get("cache_dir", ".xrefgen_cache"))
         self.incremental = config.get("incremental", True)
         self.cache_ttl = config.get("cache_ttl_seconds", 3600)
+        self.xrefgen_version = __version__
+        self.ida_version = getattr(idaapi, "IDA_SDK_VERSION", "unknown")
         self.max_function_ms = int(config.get("max_function_ms", 0))
         self.skip_slow_functions = bool(config.get("skip_slow_functions", False))
 
@@ -116,6 +123,8 @@ class PerformanceOptimizer:
                     if (
                         cache_data.get("version") == "3.0"
                         and cache_data.get("config_hash") == self.config_hash
+                        and cache_data.get("xrefgen_version") == self.xrefgen_version
+                        and cache_data.get("ida_version") == self.ida_version
                     ):
                         # Convert string keys back to ints for JSON compatibility
                         self.function_cache = {
@@ -148,6 +157,8 @@ class PerformanceOptimizer:
                 "version": "3.0",
                 "binary_hash": self.binary_hash,
                 "config_hash": self.config_hash,
+                "xrefgen_version": self.xrefgen_version,
+                "ida_version": self.ida_version,
                 "timestamp": time.time(),
                 # JSON requires string keys
                 "functions": {str(k): v for k, v in self.function_cache.items()},
