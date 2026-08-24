@@ -37,7 +37,7 @@ It is especially useful for:
 |---------|-------------|
 | **XRefer-Compatible Output** | Writes `0xSRC,0xDST` lines matching XRefer parser |
 | **Modular Analyzer System** | Enable/disable analyzers individually |
-| **Incremental & Cached Analysis** | Only re-analyze modified functions |
+| **Incremental & Cached Analysis** | Re-analyzes modified functions where safe; global summaries are rebuilt |
 | **Confidence Scoring** | Each xref has a confidence score |
 | **Evidence Tracking** | Evidence is exported in detailed/JSON/CSV formats |
 | **Multi-Architecture** | x86, x64, ARM, ARM64, MIPS |
@@ -138,7 +138,15 @@ Important output keys:
 ## Validation
 
 Run `scripts/ida_real_tests.py` inside IDA for an integration smoke test. To
-measure a corpus export, use `python scripts/compare_ground_truth.py actual.json expected.json`.
+measure a corpus export, use:
+
+```bash
+python scripts/compare_ground_truth.py actual.json expected.json \
+  --min-precision 0.95 --min-recall 0.70 --fail-on-false-positive
+```
+
+ML similarity, IDA feature matching, and interactive preview remain disabled
+by default until they have runtime validation.
 The repository includes `tests/fixtures/ground_truth.example.json` as the
 expected-file format; it is not a claim about a real binary.
 

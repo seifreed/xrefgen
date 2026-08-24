@@ -1,6 +1,6 @@
 # Compatibility
 
-The independent code is tested with Python 3.11. IDA-backed execution uses
+The independent code is tested with Python 3.9 through 3.12 in CI. IDA-backed execution uses
 the `ida_ida.inf_*` APIs and is intended for:
 
 | IDA | Hex-Rays | Status |
@@ -13,3 +13,4 @@ the `ida_ida.inf_*` APIs and is intended for:
 This repository does not contain IDA Pro or Hex-Rays, so these entries are
 targets rather than a certification claim. Run `scripts/ida_real_tests.py`
 inside each installation and compare the exported JSON with a corpus fixture.
+WebAssembly support is planned/experimental and is not enabled by default.

@@ -20,6 +20,8 @@ FILES = (
     "CHANGELOG.md",
     "SECURITY.md",
     "docs/compatibility.md",
+    "scripts/compare_ground_truth.py",
+    "scripts/ida_real_tests.py",
 )
 
 
