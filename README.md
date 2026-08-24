@@ -152,6 +152,16 @@ python scripts/compare_ground_truth.py actual.json expected.json \
   --min-precision 0.95 --min-recall 0.70 --fail-on-false-positive
 ```
 
+Build the source corpus (C/C++, Rust, Go, ARM64, MIPS, and obfuscation
+fixtures) with:
+
+```bash
+python scripts/build_corpus.py --output build/corpus
+```
+
+The builder records real compiler outputs and skips unavailable optional
+toolchains; use `--strict` when every manifest entry is required.
+
 ML similarity, IDA feature matching, and interactive preview remain disabled
 by default until they have runtime validation.
 The repository includes `tests/fixtures/ground_truth.example.json` as the

@@ -1,0 +1,23 @@
+{
+  "version": 1,
+  "variants": ["O0", "O1", "O2", "O3"],
+  "fixtures": [
+    {"name": "c_function_pointer", "language": "c", "source": "arm64_function_pointer.c", "variants": ["O0", "O1", "O2", "O3"]},
+    {"name": "c_callback", "language": "c", "source": "c_callback.c"},
+    {"name": "c_jump_table", "language": "c", "source": "c_jump_table.c"},
+    {"name": "c_global_dispatch", "language": "c", "source": "c_global_dispatch.c"},
+    {"name": "cpp_vtable", "language": "cpp", "source": "cpp_vtable.cpp"},
+    {"name": "cpp_wrapper", "language": "cpp", "source": "cpp_wrapper.cpp"},
+    {"name": "cpp_rtti", "language": "cpp", "source": "cpp_rtti.cpp"},
+    {"name": "rust_trait", "language": "rust", "source": "rust_trait.rs", "variants": ["O0", "O1", "O2"]},
+    {"name": "rust_closure", "language": "rust", "source": "rust_closure.rs", "variants": ["O0", "O1", "O2"]},
+    {"name": "rust_fn_pointer", "language": "rust", "source": "rust_fn_pointer.rs", "variants": ["O0", "O1", "O2"]},
+    {"name": "go_interface", "language": "go", "source": "go_interface.go", "variants": ["O0", "O1"]},
+    {"name": "go_callback", "language": "go", "source": "go_callback.go", "variants": ["O0", "O1"]},
+    {"name": "arm64_function_pointer", "language": "c", "source": "arm64_function_pointer.c", "target": "aarch64-unknown-linux-gnu", "variants": ["O0"]},
+    {"name": "mips_jalr", "language": "c", "source": "mips_jalr.c", "target": "mipsel-linux-gnu", "artifact": "object", "variants": ["O0"]},
+    {"name": "opaque_predicate", "language": "c", "source": "c_opaque_predicate.c"},
+    {"name": "cff_dispatch", "language": "c", "source": "c_cff_dispatch.c"},
+    {"name": "negative_no_dispatch", "language": "c", "source": "c_negative_no_dispatch.c"}
+  ]
+}

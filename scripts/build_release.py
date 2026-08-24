@@ -21,6 +21,7 @@ FILES = (
     "SECURITY.md",
     "docs/compatibility.md",
     "scripts/compare_ground_truth.py",
+    "scripts/build_corpus.py",
     "scripts/ida_real_tests.py",
     "scripts/install_ida.py",
 )
