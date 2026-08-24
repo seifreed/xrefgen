@@ -37,8 +37,23 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("actual_json")
     parser.add_argument("expected_json")
+    parser.add_argument("--min-precision", type=float, default=None)
+    parser.add_argument("--min-recall", type=float, default=None)
+    parser.add_argument("--fail-on-false-positive", action="store_true")
     args = parser.parse_args()
     report = compare(args.actual_json, args.expected_json)
     print(json.dumps(report, indent=2))
-    if report["forbidden_emitted"] or report["false_negatives"]:
+    failures = []
+    if report["forbidden_emitted"]:
+        failures.append("forbidden xrefs emitted")
+    if report["false_negatives"]:
+        failures.append("expected xrefs missing")
+    if args.fail_on_false_positive and report["false_positives"]:
+        failures.append("false positives emitted")
+    if args.min_precision is not None and report["precision"] < args.min_precision:
+        failures.append("precision below threshold")
+    if args.min_recall is not None and report["recall"] < args.min_recall:
+        failures.append("recall below threshold")
+    if failures:
+        print("Ground truth gate failed: " + "; ".join(failures))
         raise SystemExit(1)
