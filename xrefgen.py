@@ -36,7 +36,7 @@ from modules.infrastructure.ida.performance.optimizer import PerformanceOptimize
 from modules.presentation.cli import XrefGenPresenter
 from modules.presentation import logger
 from modules.presentation.logger import info as _info, warn as _warn
-from modules.domain.results import ResultStore, is_control_flow_mnemonic
+from modules.domain.results import RESULT_TYPES, ResultStore, is_control_flow_mnemonic
 from modules import __version__
 
 _DEBUG_LOG_PATH = None
@@ -182,15 +182,12 @@ class XrefGen:
             else self.manager.results_by_module
         )
         for module_name, module_results in raw_results_by_module.items():
-            for source, target, kind, confidence in module_results:
-                result_store.add(
-                    source,
-                    target,
-                    kind,
-                    confidence,
-                    module=module_name,
-                    evidence=(module_name,),
-                )
+            for result in module_results:
+                if isinstance(result, RESULT_TYPES):
+                    result_store.add_result(result, module=module_name, evidence=(module_name,))
+                    continue
+                source, target, kind, confidence = result
+                result_store.add(source, target, kind, confidence, module=module_name, evidence=(module_name,))
 
         # Export only validated control-flow candidates.
         min_confidence = self.config.get("general.min_confidence", 0.5)

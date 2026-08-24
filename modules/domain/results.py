@@ -1,7 +1,7 @@
 """Typed result collection for analysis modules."""
 
 from dataclasses import dataclass, field
-from typing import Callable, Dict, Iterable, List, Optional, Tuple
+from typing import Callable, Dict, Iterable, List, Optional, Tuple, Union
 
 
 CONTROL_FLOW_TYPES = frozenset(
@@ -54,6 +54,9 @@ class XrefCandidate:
     module: str = ""
     evidence: Tuple[str, ...] = ()
 
+    def __iter__(self):
+        return iter((self.source, self.target, self.kind, self.confidence))
+
 
 @dataclass(frozen=True)
 class Finding:
@@ -63,6 +66,9 @@ class Finding:
     confidence: float
     module: str = ""
     evidence: Tuple[str, ...] = ()
+
+    def __iter__(self):
+        return iter((self.source, self.target, self.kind, self.confidence))
 
 
 @dataclass(frozen=True)
@@ -74,6 +80,13 @@ class Relationship:
     module: str = ""
     evidence: Tuple[str, ...] = ()
 
+    def __iter__(self):
+        return iter((self.source, self.target, self.kind, self.confidence))
+
+
+AnalysisResult = Union[XrefCandidate, Finding, Relationship]
+RESULT_TYPES = (XrefCandidate, Finding, Relationship)
+
 
 @dataclass
 class _StoredXref:
@@ -81,6 +94,7 @@ class _StoredXref:
     target: int
     kind: str
     confidence: float
+    kinds: set = field(default_factory=set)
     evidence: set = field(default_factory=set)
 
 
@@ -131,10 +145,11 @@ class ResultStore:
             stored = self._xrefs.get(key)
             if stored is None:
                 self._xrefs[key] = _StoredXref(
-                    source, target, kind, confidence, set(evidence)
+                    source, target, kind, confidence, {kind}, set(evidence)
                 )
             else:
                 stored.confidence = max(stored.confidence, confidence)
+                stored.kinds.add(kind)
                 stored.evidence.update(evidence)
             return True
 
@@ -150,6 +165,49 @@ class ResultStore:
                 self.findings.append(Finding(*record))
         return False
 
+    def add_result(
+        self,
+        result: AnalysisResult,
+        module: str = "",
+        evidence: Iterable[str] = (),
+    ) -> bool:
+        """Add an explicitly classified result without inferring its role from kind."""
+        if isinstance(result, XrefCandidate):
+            return self.add(
+                result.source,
+                result.target,
+                result.kind,
+                result.confidence,
+                module or result.module,
+                tuple(evidence) + tuple(result.evidence),
+            )
+        if isinstance(result, Finding):
+            self.findings.append(
+                Finding(
+                    result.source,
+                    result.target,
+                    result.kind,
+                    result.confidence,
+                    module or result.module,
+                    tuple(sorted(set(tuple(evidence) + tuple(result.evidence)))),
+                )
+            )
+            return False
+        if isinstance(result, Relationship):
+            self.relationships.append(
+                Relationship(
+                    result.source,
+                    result.target,
+                    result.kind,
+                    result.confidence,
+                    module or result.module,
+                    tuple(sorted(set(tuple(evidence) + tuple(result.evidence)))),
+                )
+            )
+            return False
+        self._reject(result, None, "unknown", "invalid_result")
+        return False
+
     def xrefs(self, min_confidence: float = 0.0) -> List[Tuple[int, int, str, float]]:
         return [
             (item.source, item.target, item.kind, item.confidence)
@@ -159,6 +217,10 @@ class ResultStore:
 
     def evidence(self) -> Dict[Tuple[int, int], set]:
         return {key: set(item.evidence) for key, item in self._xrefs.items()}
+
+    def xref_types(self) -> Dict[Tuple[int, int], set]:
+        """Return every control-flow type observed for each accepted pair."""
+        return {key: set(item.kinds) for key, item in self._xrefs.items()}
 
     def _xref_rejection_reason(self, source: int, target: int) -> Optional[str]:
         if source == target:
@@ -183,3 +245,18 @@ class ResultStore:
         self.rejections.append(
             {"source": source, "target": target, "kind": kind, "reason": reason}
         )
+        try:
+            key = (int(source), int(target), str(kind), reason)
+            if key not in self._finding_keys:
+                self._finding_keys.add(key)
+                self.findings.append(
+                    Finding(
+                        int(source),
+                        int(target),
+                        f"rejected_{kind}",
+                        0.0,
+                        evidence=(reason,),
+                    )
+                )
+        except (TypeError, ValueError):
+            pass
