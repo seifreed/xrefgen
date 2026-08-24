@@ -105,11 +105,18 @@ Format (strict):
 
 ## Installation
 
-1. Copy the `xrefgen` folder into your IDA scripts directory.
-2. Open your binary in **IDA Pro 9.2+**.
-3. Run:
-   - Script mode: `File > Script file...` or `Alt+F7` on `xrefgen.py`
-   - Plugin mode: copy `xrefgen_plugin.py` into IDA `plugins/` and run **XrefGen** from `Edit > Plugins`.
+Install in one command by pointing at IDA's user directory:
+
+```bash
+python scripts/install_ida.py --ida-user-dir /path/to/ida-user-dir
+```
+
+The `IDAUSR` environment variable can be used instead of the option.
+
+The installer copies the core and configuration to `scripts/xrefgen/` and the
+plugin entrypoint to `plugins/`, without deleting existing files. Open your
+binary in **IDA Pro 9.2+**, then run **XrefGen** from `Edit > Plugins` or run
+`xrefgen.py` from `File > Script file...`.
 
 ## Quick Start
 

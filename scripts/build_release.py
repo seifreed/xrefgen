@@ -22,6 +22,7 @@ FILES = (
     "docs/compatibility.md",
     "scripts/compare_ground_truth.py",
     "scripts/ida_real_tests.py",
+    "scripts/install_ida.py",
 )
 
 
