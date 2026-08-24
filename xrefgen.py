@@ -4,7 +4,7 @@ XrefGen - Advanced Cross-Reference Generator for IDA Pro
 Main orchestrator script that executes all analysis modules
 
 Author: Marc Rivero | @seifreed
-Version: 2.0
+Version: 0.5.0-alpha.1
 """
 
 import sys
@@ -38,6 +38,7 @@ from modules.presentation.cli import XrefGenPresenter
 from modules.presentation import logger
 from modules.presentation.logger import info as _info, warn as _warn
 from modules.domain.results import ResultStore
+from modules import __version__
 
 _DEBUG_LOG_PATH = None
 
@@ -97,7 +98,7 @@ class XrefGen:
 
     def __init__(self, config_file: str = None):
         """Initialize XrefGen with configuration"""
-        print("XrefGen v2.0 - Advanced Cross-Reference Generator for IDA Pro")
+        print(f"XrefGen v{__version__} - Advanced Cross-Reference Generator for IDA Pro")
         print("Author: Marc Rivero (@seifreed)")
 
         # Load configuration

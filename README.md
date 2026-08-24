@@ -23,7 +23,7 @@
 
 ## Overview
 
-**XrefGen** is a professional-grade cross-reference generator that detects indirect references and complex control-flow patterns that IDA Pro may miss. It is designed to feed **Mandiant XRefer** with additional user xrefs in the exact format the plugin expects.
+**XrefGen 0.5.0-alpha.1** is a research-grade cross-reference generator that detects high-confidence indirect references and complex control-flow patterns that IDA Pro may miss. It feeds **Mandiant XRefer** only validated control-flow candidates; data-flow and obfuscation observations are exported separately.
 
 It is especially useful for:
 - Modern compiled languages (Rust, Go, C++)
@@ -98,6 +98,9 @@ Format (strict):
 <IDB_PATH>_user_xrefs.json
 <IDB_PATH>_user_xrefs.csv
 <IDB_PATH>_user_xrefs_taint.txt
+<IDB_PATH>_xrefgen_findings.json
+<IDB_PATH>_xrefgen_relationships.json
+<IDB_PATH>_xrefgen_rejections.json
 ```
 
 ## Installation

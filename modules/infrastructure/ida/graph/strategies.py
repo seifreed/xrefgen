@@ -4,6 +4,7 @@ import idaapi
 import idautils
 import idc
 import ida_segment
+from modules.infrastructure.ida.compat import is_64bit
 from modules.infrastructure.ida.utils import abi
 from modules.infrastructure.ida.utils.names import normalize_name
 from modules.infrastructure.ida.utils.insn import scan_back_for_reg_source
@@ -92,7 +93,7 @@ class SEHResolver:
                 continue
             seg_end = idc.get_segm_end(seg_ea)
             ea = seg_ea
-            ptr = 8 if idaapi.get_inf_structure().is_64bit() else 4
+            ptr = 8 if is_64bit() else 4
             while ea < seg_end:
                 try:
                     handler = idc.get_qword(ea) if ptr == 8 else idc.get_wide_dword(ea)
@@ -118,7 +119,7 @@ class VTableResolver:
         results = []
         seen_entries = set()
         try:
-            ptr_size = 8 if idaapi.get_inf_structure().is_64bit() else 4
+            ptr_size = 8 if is_64bit() else 4
         except (TypeError, ValueError, AttributeError, RuntimeError):
             ptr_size = 4
         for vt_start, is_rtti in self.a._find_named_vtables():

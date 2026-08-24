@@ -5,18 +5,33 @@ Tracks data flow from sources to sinks, return value propagation, and pointer ch
 
 from typing import Dict, List, Tuple, Set, Optional
 import idaapi
+
 try:
     import ida_gdl
-except Exception:
+except (TypeError, ValueError, AttributeError, RuntimeError):
     ida_gdl = None
 import idautils
 import idc
 import ida_funcs
 import ida_xref
 from modules.infrastructure.ida.performance.optimizer import IncrementalAnalyzer
+from modules.infrastructure.ida.compat import procname
 from modules.infrastructure.ida.utils import abi
 from modules.infrastructure.ida.utils.names import normalize_name
-from modules.infrastructure.ida.analysis.components import ArgumentResolver, StringEvidence, HeapTracker, CFGWalker, TaintMovement, StackTaint, ArithmeticTaint, RegisterForwardTracker, RegisterResolver, ArgumentTaintChecker, StackArgScanner, ReturnValueTracker
+from modules.infrastructure.ida.analysis.components import (
+    ArgumentResolver,
+    StringEvidence,
+    HeapTracker,
+    CFGWalker,
+    TaintMovement,
+    StackTaint,
+    ArithmeticTaint,
+    RegisterForwardTracker,
+    RegisterResolver,
+    ArgumentTaintChecker,
+    StackArgScanner,
+    ReturnValueTracker,
+)
 from modules.infrastructure.ida.analysis.taint_rules import TaintRules
 from modules.infrastructure.ida.analysis.sink_policy import SinkPolicy
 from modules.infrastructure.ida.analysis.interprocedural import InterproceduralSummaries
@@ -30,87 +45,94 @@ from modules.infrastructure.ida.analysis.call_policies import (
 )
 from collections import deque
 import time
+
 try:
     import ida_typeinf
-except Exception:
+except (TypeError, ValueError, AttributeError, RuntimeError):
     ida_typeinf = None
 try:
     import ida_hexrays
-except Exception:
+except (TypeError, ValueError, AttributeError, RuntimeError):
     ida_hexrays = None
 try:
     import ida_frame
-except Exception:
+except (TypeError, ValueError, AttributeError, RuntimeError):
     ida_frame = None
 try:
     import ida_struct
-except Exception:
+except (TypeError, ValueError, AttributeError, RuntimeError):
     ida_struct = None
 try:
     import ida_ida
 except ImportError:
     ida_ida = None
 
+
 class DataFlowAnalyzer(IncrementalAnalyzer):
     """Enhanced data flow analysis for taint tracking and value propagation"""
-    
+
     def _safe_get_operand_value(self, ea: int, op_idx: int) -> Optional[int]:
         """Safely get operand value with error handling"""
         try:
             if idc.get_operand_type(ea, op_idx) != idc.o_void:
                 return idc.get_operand_value(ea, op_idx)
-        except Exception:
+        except (TypeError, ValueError, AttributeError, RuntimeError):
             return None
         return None
-    
+
     def _safe_print_operand(self, ea: int, op_idx: int) -> str:
         """Safely get operand string with error handling"""
         try:
             if idc.get_operand_type(ea, op_idx) != idc.o_void:
                 return idc.print_operand(ea, op_idx)
-        except Exception:
+        except (TypeError, ValueError, AttributeError, RuntimeError):
             return ""
         return ""
-    
+
     def __init__(self, config: Dict = None):
         super().__init__(config)
+        def configured_names(key, default):
+            return {normalize_name(value) for value in config.get(key, default)}
+
         self._procname = ""
         try:
-            self._procname = idaapi.get_inf_structure().procname.lower()
-        except Exception:
+            self._procname = procname()
+        except (TypeError, ValueError, AttributeError, RuntimeError):
             self._procname = ""
-        self.taint_sources = set(config.get('taint_sources', [
-            'recv', 'read', 'fread', 'scanf', 'gets', 'getchar',
-            'recvfrom', 'recvmsg', 'ReadFile', 'InternetReadFile',
-            'fgets', 'getenv', 'getline', 'fscanf'
-        ]))
-        self.string_sources = set(config.get('string_sources', [
-            'gets', 'fgets', 'getline', 'scanf', 'fscanf', 'recv', 'read'
-        ]))
-        self.numeric_parsers = set(config.get('numeric_parsers', [
-            'atoi', 'atol', 'strtol', 'strtoul', 'strtoll', 'strtoull',
-            'sscanf', 'scanf', 'fscanf'
-        ]))
-        self.taint_sinks = set(config.get('taint_sinks', [
-            'system', 'exec', 'strcpy', 'sprintf', 'memcpy',
-            'execve', 'execl', 'ShellExecute', 'CreateProcess',
-            'strcat', 'vsprintf', 'WinExec', 'popen'
-        ]))
-        self.sink_exec_keywords = [s.lower() for s in config.get('sink_exec_keywords', [
-            'exec', 'system', 'popen', 'createprocess'
-        ])]
-        self.sink_string_keywords = [s.lower() for s in config.get('sink_string_keywords', [
-            'str', 'sprintf', 'printf'
-        ])]
-        self.taint_carrying_apis = set(config.get('taint_carrying_apis', [
-            'memcpy', 'memmove', 'strcpy', 'strncpy', 'strcat', 'strncat',
-            'sprintf', 'snprintf', 'vsprintf', 'vsnprintf'
-        ]))
-        self.heap_alloc_apis = set(config.get('heap_alloc_apis', [
-            'malloc', 'calloc', 'realloc', 'new', 'operator new',
-            'HeapAlloc', 'VirtualAlloc'
-        ]))
-        self.use_hexrays_taint = config.get('use_hexrays_taint', True)
+        self.taint_sources = configured_names("taint_sources", [
+            "recv", "read", "fread", "scanf", "gets", "getchar", "recvfrom",
+            "recvmsg", "ReadFile", "InternetReadFile", "fgets", "getenv",
+            "getline", "fscanf",
+        ])
+        self.string_sources = configured_names(
+            "string_sources", ["gets", "fgets", "getline", "scanf", "fscanf", "recv", "read"]
+        )
+        self.numeric_parsers = configured_names("numeric_parsers", [
+            "atoi", "atol", "strtol", "strtoul", "strtoll", "strtoull",
+            "sscanf", "scanf", "fscanf",
+        ])
+        self.taint_sinks = configured_names("taint_sinks", [
+            "system", "exec", "strcpy", "sprintf", "memcpy", "execve", "execl",
+            "ShellExecute", "CreateProcess", "strcat", "vsprintf", "WinExec", "popen",
+        ])
+        self.sink_exec_keywords = [
+            s.lower()
+            for s in config.get(
+                "sink_exec_keywords", ["exec", "system", "popen", "createprocess"]
+            )
+        ]
+        self.sink_string_keywords = [
+            s.lower()
+            for s in config.get("sink_string_keywords", ["str", "sprintf", "printf"])
+        ]
+        self.taint_carrying_apis = configured_names("taint_carrying_apis", [
+            "memcpy", "memmove", "strcpy", "strncpy", "strcat", "strncat",
+            "sprintf", "snprintf", "vsprintf", "vsnprintf",
+        ])
+        self.heap_alloc_apis = configured_names("heap_alloc_apis", [
+            "malloc", "calloc", "realloc", "new", "operator new", "HeapAlloc", "VirtualAlloc",
+        ])
+        self.use_hexrays_taint = config.get("use_hexrays_taint", True)
         self._tuning_defaults = {
             "sink_min_confidence": 0.5,
             "function_timeout_ms": 0,
@@ -138,28 +160,52 @@ class DataFlowAnalyzer(IncrementalAnalyzer):
         self.cf_sensitive_sinks = bool(self.tuning_table.get("cf_sensitive_sinks"))
         self.sink_min_confidence = float(self.tuning_table.get("sink_min_confidence"))
         self.function_timeout_ms = int(self.tuning_table.get("function_timeout_ms"))
-        self.large_function_threshold = int(self.tuning_table.get("large_function_threshold"))
-        self.large_function_taint_depth = int(self.tuning_table.get("large_function_taint_depth"))
-        self.cfg_complexity_threshold = int(self.tuning_table.get("cfg_complexity_threshold"))
+        self.large_function_threshold = int(
+            self.tuning_table.get("large_function_threshold")
+        )
+        self.large_function_taint_depth = int(
+            self.tuning_table.get("large_function_taint_depth")
+        )
+        self.cfg_complexity_threshold = int(
+            self.tuning_table.get("cfg_complexity_threshold")
+        )
         self.cfg_depth_scale = float(self.tuning_table.get("cfg_depth_scale"))
         self.cfg_fanout_threshold = int(self.tuning_table.get("cfg_fanout_threshold"))
         self.cfg_loop_penalty = float(self.tuning_table.get("cfg_loop_penalty"))
-        self.cfg_edge_density_threshold = float(self.tuning_table.get("cfg_edge_density_threshold"))
-        self.cfg_loop_nesting_penalty = float(self.tuning_table.get("cfg_loop_nesting_penalty"))
+        self.cfg_edge_density_threshold = float(
+            self.tuning_table.get("cfg_edge_density_threshold")
+        )
+        self.cfg_loop_nesting_penalty = float(
+            self.tuning_table.get("cfg_loop_nesting_penalty")
+        )
         self.max_taint_depth = self.tuning_table.get("max_taint_depth")
-        self.sanitizers = set(config.get('taint_sanitizers', self._default_sanitizers()))
-        self.ip_depth = int(config.get('taint_interprocedural_depth', 1))
-        self.ip_fanout = int(config.get('taint_interprocedural_fanout', 5))
-        self.stack_arg_scan_max_back = int(self.tuning_table.get('stack_arg_scan_max_back'))
-        self.stack_arg_win_slots = list(config.get('stack_arg_win_slots', [0, 8, 16, 24]))
-        self.return_value_back_depth = int(self.tuning_table.get('return_value_back_depth'))
-        self.return_value_forward_depth = int(self.tuning_table.get('return_value_forward_depth'))
-        self.register_resolve_back_depth = int(self.tuning_table.get('register_resolve_back_depth'))
-        self.pointer_chain_max_depth = int(self.tuning_table.get('pointer_chain_max_depth'))
+        self.sanitizers = set(
+            config.get("taint_sanitizers", self._default_sanitizers())
+        )
+        self.ip_depth = int(config.get("taint_interprocedural_depth", 1))
+        self.ip_fanout = int(config.get("taint_interprocedural_fanout", 5))
+        self.stack_arg_scan_max_back = int(
+            self.tuning_table.get("stack_arg_scan_max_back")
+        )
+        self.stack_arg_win_slots = list(
+            config.get("stack_arg_win_slots", [0, 8, 16, 24])
+        )
+        self.return_value_back_depth = int(
+            self.tuning_table.get("return_value_back_depth")
+        )
+        self.return_value_forward_depth = int(
+            self.tuning_table.get("return_value_forward_depth")
+        )
+        self.register_resolve_back_depth = int(
+            self.tuning_table.get("register_resolve_back_depth")
+        )
+        self.pointer_chain_max_depth = int(
+            self.tuning_table.get("pointer_chain_max_depth")
+        )
         self.tainted_regs = {}  # func_ea -> {reg: (source_ea, confidence)}
-        self.tainted_mem = {}   # func_ea -> {mem_addr: (source_ea, confidence)}
+        self.tainted_mem = {}  # func_ea -> {mem_addr: (source_ea, confidence)}
         self.taint_kinds_regs = {}  # func_ea -> {reg: kind}
-        self.taint_kinds_mem = {}   # func_ea -> {mem_key: kind}
+        self.taint_kinds_mem = {}  # func_ea -> {mem_key: kind}
         self.taint_payload_regs = {}  # func_ea -> {reg: payload_kind}
         self.taint_kind_xrefs = {}  # (source,target) -> kind
         self.return_values = {}  # func_ea -> (value, confidence)
@@ -200,11 +246,11 @@ class DataFlowAnalyzer(IncrementalAnalyzer):
             func_count = len(list(idautils.Functions()))
             if func_count > 5000:
                 self.sink_min_confidence = max(self.sink_min_confidence, 0.65)
-        except Exception:
+        except (TypeError, ValueError, AttributeError, RuntimeError):
             pass
         # Some IDA versions (including 9.1 Python API) do not expose idc.get_sp_val
         # Guard stack taint tracking accordingly
-        self._has_get_sp_val = hasattr(idc, 'get_sp_val')
+        self._has_get_sp_val = hasattr(idc, "get_sp_val")
         self._ip_cache = set()
 
     def _iter_functions(self):
@@ -219,14 +265,14 @@ class DataFlowAnalyzer(IncrementalAnalyzer):
         for func_ea, func in self._iter_functions():
             try:
                 func_name = idc.get_func_name(func_ea)
-            except Exception:
+            except (TypeError, ValueError, AttributeError, RuntimeError):
                 continue
             if func_name:
                 yield func_ea, func, normalize_name(func_name)
-        
+
     def get_name(self) -> str:
         return "DataFlowAnalyzer"
-    
+
     def analyze(self) -> List[Tuple[int, int, str, float]]:
         return super().analyze()
 
@@ -247,18 +293,22 @@ class DataFlowAnalyzer(IncrementalAnalyzer):
         if self.function_timeout_ms and self.function_timeout_ms > 0:
             deadline = time.time() + (self.function_timeout_ms / 1000.0)
         self._max_depth_override = None
-        self._slow = hasattr(self, "_slow_functions") and func_ea in self._slow_functions
+        self._slow = (
+            hasattr(self, "_slow_functions") and func_ea in self._slow_functions
+        )
         try:
             if (func.end_ea - func.start_ea) > self.large_function_threshold:
                 self._max_depth_override = self.large_function_taint_depth
-        except Exception:
+        except (TypeError, ValueError, AttributeError, RuntimeError):
             self._max_depth_override = None
         try:
             blocks = list(self._iter_basic_blocks(func))
             if len(blocks) > self.cfg_complexity_threshold:
                 scaled = max(2, int(self.max_taint_depth * self.cfg_depth_scale))
-                self._max_depth_override = min(self._max_depth_override or scaled, scaled)
-        except Exception:
+                self._max_depth_override = min(
+                    self._max_depth_override or scaled, scaled
+                )
+        except (TypeError, ValueError, AttributeError, RuntimeError):
             pass
         try:
             if blocks:
@@ -273,49 +323,61 @@ class DataFlowAnalyzer(IncrementalAnalyzer):
                         back_edges += 1
                 if max_fanout >= self.cfg_fanout_threshold:
                     scaled = max(2, int(self.max_taint_depth * self.cfg_depth_scale))
-                    self._max_depth_override = min(self._max_depth_override or scaled, scaled)
+                    self._max_depth_override = min(
+                        self._max_depth_override or scaled, scaled
+                    )
                 density = edges / max(1, len(blocks))
                 if density >= self.cfg_edge_density_threshold:
                     scaled = max(2, int(self.max_taint_depth * self.cfg_depth_scale))
-                    self._max_depth_override = min(self._max_depth_override or scaled, scaled)
+                    self._max_depth_override = min(
+                        self._max_depth_override or scaled, scaled
+                    )
                 if back_edges:
                     scaled = max(2, int(self.max_taint_depth * self.cfg_loop_penalty))
-                    self._max_depth_override = min(self._max_depth_override or scaled, scaled)
+                    self._max_depth_override = min(
+                        self._max_depth_override or scaled, scaled
+                    )
                     if back_edges > 2:
-                        scaled = max(2, int(self.max_taint_depth * self.cfg_loop_nesting_penalty))
-                        self._max_depth_override = min(self._max_depth_override or scaled, scaled)
-        except Exception:
+                        scaled = max(
+                            2, int(self.max_taint_depth * self.cfg_loop_nesting_penalty)
+                        )
+                        self._max_depth_override = min(
+                            self._max_depth_override or scaled, scaled
+                        )
+        except (TypeError, ValueError, AttributeError, RuntimeError):
             pass
         try:
             # Local taint propagation inside function
             self._analyze_function_taint(func_ea, deadline)
             # Source/sink logic for this function + its callers
             results.extend(self._analyze_taint_for_function(func_ea))
-        except Exception as e:
+        except (TypeError, ValueError, AttributeError, RuntimeError) as e:
             print(f"[DataFlowAnalyzer] Warning in taint analysis: {e}")
         try:
             if not self._slow:
                 results.extend(self._analyze_return_values_for_function(func_ea, func))
-        except Exception as e:
+        except (TypeError, ValueError, AttributeError, RuntimeError) as e:
             print(f"[DataFlowAnalyzer] Warning in return value analysis: {e}")
         try:
             if not self._slow:
                 results.extend(self._hexrays_taint_flow(func_ea))
-        except Exception as e:
+        except (TypeError, ValueError, AttributeError, RuntimeError) as e:
             print(f"[DataFlowAnalyzer] Warning in Hex-Rays taint analysis: {e}")
         try:
             if not self._slow:
                 pointer_chains = self._find_pointer_chains(func, deadline)
                 results.extend(self._emit_pointer_chain_results(pointer_chains))
-        except Exception as e:
+        except (TypeError, ValueError, AttributeError, RuntimeError) as e:
             print(f"[DataFlowAnalyzer] Warning in pointer chain analysis: {e}")
         return results
-    
-    def _analyze_taint_for_function(self, func_ea: int) -> List[Tuple[int, int, str, float]]:
+
+    def _analyze_taint_for_function(
+        self, func_ea: int
+    ) -> List[Tuple[int, int, str, float]]:
         results = []
         try:
             func_name = idc.get_func_name(func_ea)
-        except Exception:
+        except (TypeError, ValueError, AttributeError, RuntimeError):
             return results
         if not func_name:
             return results
@@ -335,34 +397,53 @@ class DataFlowAnalyzer(IncrementalAnalyzer):
                             confidence *= self.taint_rules.adjust_sink_confidence(
                                 sink, kind, xref.frm, source_ea
                             )
-                            if not self.sink_policy.should_emit(source_ea, xref.frm, sink, kind, confidence):
+                            if not self.sink_policy.should_emit(
+                                source_ea, xref.frm, sink, kind, confidence
+                            ):
                                 continue
-                            self.add_xref(source_ea, xref.frm, f"taint_flow_{sink}", confidence * 0.9)
+                            self.add_xref(
+                                source_ea,
+                                xref.frm,
+                                f"taint_flow_{sink}",
+                                confidence * 0.9,
+                            )
                             try:
                                 self.add_evidence(source_ea, xref.frm, "dataflow")
-                            except Exception:
+                            except (
+                                TypeError,
+                                ValueError,
+                                AttributeError,
+                                RuntimeError,
+                            ):
                                 pass
                             self.taint_kind_xrefs[(source_ea, xref.frm)] = kind
-                            results.append((source_ea, xref.frm, f"taint_flow_{sink}", confidence * 0.9))
+                            results.append(
+                                (
+                                    source_ea,
+                                    xref.frm,
+                                    f"taint_flow_{sink}",
+                                    confidence * 0.9,
+                                )
+                            )
         return results
-    
+
     def _propagate_taint_from_call(self, call_ea: int, source_func: int):
         """Propagate taint from a function call"""
         func = ida_funcs.get_func(call_ea)
         if not func:
             return
-            
+
         # Get return register name based on ABI
         ret_reg = abi.return_reg()
-            
+
         # Mark return value as tainted
         if func.start_ea not in self.tainted_regs:
             self.tainted_regs[func.start_ea] = {}
         self.tainted_regs[func.start_ea][ret_reg] = (call_ea, 0.9)
-        
+
         # Track forward from call
         self._track_register_forward(call_ea, ret_reg, source_func)
-    
+
     def _analyze_function_taint(self, func_ea: int, deadline: Optional[float] = None):
         """Analyze taint propagation within a function using basic blocks."""
         func = ida_funcs.get_func(func_ea)
@@ -380,11 +461,10 @@ class DataFlowAnalyzer(IncrementalAnalyzer):
                 return op_type_cache[key]
             try:
                 val = idc.get_operand_type(ea, idx)
-            except Exception:
+            except (TypeError, ValueError, AttributeError, RuntimeError):
                 val = idc.o_void
             op_type_cache[key] = val
             return val
-
 
         def op_str(ea, idx):
             key = (ea, idx)
@@ -392,7 +472,7 @@ class DataFlowAnalyzer(IncrementalAnalyzer):
                 return op_str_cache[key]
             try:
                 val = idc.print_operand(ea, idx)
-            except Exception:
+            except (TypeError, ValueError, AttributeError, RuntimeError):
                 val = ""
             op_str_cache[key] = val
             return val
@@ -430,7 +510,7 @@ class DataFlowAnalyzer(IncrementalAnalyzer):
                     mnem = self._mnem(head, mnem_cache)
                     if not mnem:
                         continue
-                except Exception:
+                except (TypeError, ValueError, AttributeError, RuntimeError):
                     continue
 
                 # Track MOV/LOAD/STORE instructions for taint propagation
@@ -449,13 +529,16 @@ class DataFlowAnalyzer(IncrementalAnalyzer):
                     self._handle_jump_table_taint(head, func, regs)
                 # keep kinds map updated per instruction from global kind maps
                 for r in list(regs.keys()):
-                    if func_ea in self.taint_kinds_regs and r in self.taint_kinds_regs[func_ea]:
+                    if (
+                        func_ea in self.taint_kinds_regs
+                        and r in self.taint_kinds_regs[func_ea]
+                    ):
                         kinds[r] = self.taint_kinds_regs[func_ea][r]
                 # Track last definitions in block for reaching-defs
                 if mnem in self._mov_mnems() | {"mov"}:
                     try:
                         dst_type = idc.get_operand_type(head, 0)
-                    except Exception:
+                    except (TypeError, ValueError, AttributeError, RuntimeError):
                         dst_type = idc.o_void
                     if dst_type == idc.o_reg:
                         reg = idc.print_operand(head, 0).lower()
@@ -487,16 +570,20 @@ class DataFlowAnalyzer(IncrementalAnalyzer):
             for reg in arg_regs:
                 if reg in self.tainted_regs[func_ea]:
                     self.taint_summaries.setdefault(func_ea, set()).add(reg)
-    
-    def _track_mov_taint(self, ea: int, func_ea: int, regs: dict, mem: dict, op_type, op_str):
+
+    def _track_mov_taint(
+        self, ea: int, func_ea: int, regs: dict, mem: dict, op_type, op_str
+    ):
         """Track taint through MOV instructions."""
         self.taint_movement.track_mov(ea, func_ea, regs, mem, op_type, op_str)
-    
+
     def _track_register_forward(self, start_ea: int, reg: str, source: int):
         """Track a tainted register forward through the code."""
         self.reg_forward.track(start_ea, reg, source)
-    
-    def _check_tainted_arguments(self, call_ea: int) -> Optional[Tuple[int, float, str]]:
+
+    def _check_tainted_arguments(
+        self, call_ea: int
+    ) -> Optional[Tuple[int, float, str]]:
         """Check if any arguments to a call are tainted"""
         taint = self.arg_taint_checker.check(call_ea)
         if taint:
@@ -511,7 +598,9 @@ class DataFlowAnalyzer(IncrementalAnalyzer):
             return source_ea, conf, "ptr"
         return None
 
-    def _scan_stack_arguments(self, call_ea: int, func, reg_arg_count: int) -> Optional[Tuple[int, float]]:
+    def _scan_stack_arguments(
+        self, call_ea: int, func, reg_arg_count: int
+    ) -> Optional[Tuple[int, float]]:
         """Scan a window before call for stack-based argument setup.
         - Win64: detect home space stores to [rsp+0..24]
         - SysV: detect additional args via pushes or [rsp+offset] stores
@@ -537,7 +626,6 @@ class DataFlowAnalyzer(IncrementalAnalyzer):
     def _is_format_string(self, call_ea: int) -> bool:
         return self.string_evidence.is_format_string(call_ea)
 
-    
     def _analyze_return_values(self) -> List[Tuple[int, int, str, float]]:
         """Track function return values used as indirect call targets."""
         results = []
@@ -546,7 +634,9 @@ class DataFlowAnalyzer(IncrementalAnalyzer):
             results.extend(self._emit_return_value_xrefs(func_ea))
         return results
 
-    def _analyze_return_values_for_function(self, func_ea: int, func) -> List[Tuple[int, int, str, float]]:
+    def _analyze_return_values_for_function(
+        self, func_ea: int, func
+    ) -> List[Tuple[int, int, str, float]]:
         results = []
         self._collect_return_values(func_ea, func)
         results.extend(self._emit_return_value_xrefs(func_ea))
@@ -558,15 +648,19 @@ class DataFlowAnalyzer(IncrementalAnalyzer):
         if plat == "windows":
             base += ["RtlZeroMemory", "SecureZeroMemory", "memcpy_s", "strcpy_s"]
         return base
-    
-    def _get_return_value(self, ret_ea: int, func_ea: int) -> Optional[Tuple[int, float]]:
+
+    def _get_return_value(
+        self, ret_ea: int, func_ea: int
+    ) -> Optional[Tuple[int, float]]:
         """Get the value in the return register at a return instruction"""
         return self.return_tracker.get_return_value(ret_ea, func_ea)
-    
-    def _check_return_value_usage(self, call_ea: int, called_func: int) -> Optional[Tuple[int, float]]:
+
+    def _check_return_value_usage(
+        self, call_ea: int, called_func: int
+    ) -> Optional[Tuple[int, float]]:
         """Check if return value from a call is used for indirect call"""
         return self.return_tracker.check_return_usage(call_ea, called_func)
-    
+
     def _analyze_pointer_chains(self) -> List[Tuple[int, int, str, float]]:
         """Analyze multi-level pointer dereferences."""
         results = []
@@ -574,11 +668,13 @@ class DataFlowAnalyzer(IncrementalAnalyzer):
             pointer_chains = self._find_pointer_chains(func)
             results.extend(self._emit_pointer_chain_results(pointer_chains))
         return results
-    
-    def _find_pointer_chains(self, func, deadline: Optional[float] = None) -> List[Tuple[int, int, int]]:
+
+    def _find_pointer_chains(
+        self, func, deadline: Optional[float] = None
+    ) -> List[Tuple[int, int, int]]:
         """Find multi-level pointer dereferences in a function"""
         chains = []
-        
+
         for head in idautils.Heads(func.start_ea, func.end_ea):
             if deadline and time.time() > deadline:
                 break
@@ -586,9 +682,9 @@ class DataFlowAnalyzer(IncrementalAnalyzer):
                 mnem = idc.print_insn_mnem(head).lower()
                 if not mnem:
                     continue
-            except Exception:
+            except (TypeError, ValueError, AttributeError, RuntimeError):
                 continue
-            
+
             # Look for patterns like: mov rax, [rbx]; mov rcx, [rax]; call [rcx]
             if mnem == "mov":
                 chain = self._trace_pointer_chain(head, func.end_ea)
@@ -597,10 +693,10 @@ class DataFlowAnalyzer(IncrementalAnalyzer):
                     source = chain[0]
                     target = chain[-1]
                     depth = len(chain) - 1
-                    
+
                     if self.is_valid_reference(target):
                         chains.append((source, target, depth))
-        
+
         return chains
 
     def _collect_return_values(self, func_ea: int, func):
@@ -611,7 +707,9 @@ class DataFlowAnalyzer(IncrementalAnalyzer):
                 if ret_value:
                     self.return_values[func_ea] = ret_value
 
-    def _emit_return_value_xrefs(self, func_ea: int) -> List[Tuple[int, int, str, float]]:
+    def _emit_return_value_xrefs(
+        self, func_ea: int
+    ) -> List[Tuple[int, int, str, float]]:
         results = []
         for xref in idautils.XrefsTo(func_ea):
             if xref.type in [ida_xref.fl_CN, ida_xref.fl_CF]:
@@ -622,14 +720,16 @@ class DataFlowAnalyzer(IncrementalAnalyzer):
                     results.append((xref.frm, target, "return_value_call", confidence))
         return results
 
-    def _emit_pointer_chain_results(self, pointer_chains: List[Tuple[int, int, int]]) -> List[Tuple[int, int, str, float]]:
+    def _emit_pointer_chain_results(
+        self, pointer_chains: List[Tuple[int, int, int]]
+    ) -> List[Tuple[int, int, str, float]]:
         results = []
         for source, target, depth in pointer_chains:
             confidence = max(0.5, 1.0 - (depth * 0.1))
             self.add_xref(source, target, f"pointer_chain_depth_{depth}", confidence)
             results.append((source, target, f"pointer_chain_depth_{depth}", confidence))
         return results
-    
+
     def _trace_pointer_chain(self, start_ea: int, end_ea: int) -> List[int]:
         """Trace a chain of pointer dereferences"""
         chain = [start_ea]
@@ -637,17 +737,17 @@ class DataFlowAnalyzer(IncrementalAnalyzer):
         tracked_reg = None
         depth = 0
         max_depth = self.pointer_chain_max_depth
-        
+
         while ea < end_ea and depth < max_depth:
             mnem = idc.print_insn_mnem(ea).lower()
-            
+
             if mnem == "mov":
                 dst_type = idc.get_operand_type(ea, 0)
                 src_type = idc.get_operand_type(ea, 1)
-                
+
                 if dst_type == idc.o_reg:
                     dst_reg = idc.print_operand(ea, 0)
-                    
+
                     # Check if source is a memory dereference
                     if src_type == idc.o_displ or src_type == idc.o_mem:
                         if tracked_reg is None or tracked_reg == dst_reg:
@@ -655,7 +755,7 @@ class DataFlowAnalyzer(IncrementalAnalyzer):
                             chain.append(ea)
                             tracked_reg = dst_reg
                             depth += 1
-                        
+
             elif mnem in ["call", "jmp"] and tracked_reg is not None:
                 op_type = idc.get_operand_type(ea, 0)
                 if op_type == idc.o_reg or op_type == idc.o_displ:
@@ -664,20 +764,24 @@ class DataFlowAnalyzer(IncrementalAnalyzer):
                     if target:
                         chain.append(target)
                     break
-            
+
             ea = idc.next_head(ea)
-        
+
         return chain if len(chain) > 1 else []
-    
+
     def _resolve_register_value(self, ea: int, reg) -> Optional[int]:
         """Try to resolve the value in a register at a given address"""
         return self.reg_resolver.resolve_immediate(ea, reg)
-    
-    def _track_arithmetic_taint(self, ea: int, func_ea: int, regs: dict, op_type, op_str):
+
+    def _track_arithmetic_taint(
+        self, ea: int, func_ea: int, regs: dict, op_type, op_str
+    ):
         """Track taint through arithmetic operations."""
         self.arith_taint.track_arithmetic(ea, func_ea, regs, op_type, op_str)
-    
-    def _track_stack_taint(self, ea: int, func_ea: int, regs: dict, mem: dict, op_type, op_str):
+
+    def _track_stack_taint(
+        self, ea: int, func_ea: int, regs: dict, mem: dict, op_type, op_str
+    ):
         """Track taint through stack operations."""
         self.stack_taint.track_stack(ea, func_ea, regs, mem, op_type, op_str)
 
@@ -686,7 +790,7 @@ class DataFlowAnalyzer(IncrementalAnalyzer):
         try:
             target = idc.get_operand_value(call_ea, 0)
             name = normalize_name(idc.get_func_name(target))
-        except Exception:
+        except (TypeError, ValueError, AttributeError, RuntimeError):
             return
         if not name:
             return
@@ -705,14 +809,18 @@ class DataFlowAnalyzer(IncrementalAnalyzer):
         self._propagate_taint_to_callee(call_ea, target, func_ea, self.ip_depth, set())
         self._propagate_taint_from_callee(call_ea, target, func_ea)
 
-    def _propagate_taint_to_callee(self, call_ea: int, callee_ea: int, caller_func_ea: int, depth: int, seen: set):
+    def _propagate_taint_to_callee(
+        self, call_ea: int, callee_ea: int, caller_func_ea: int, depth: int, seen: set
+    ):
         """Propagate tainted argument registers into callee."""
         if depth <= 0:
             return
         if callee_ea in seen:
             return
         arg_regs = abi.arg_registers()
-        tainted_args = tuple(reg for reg in arg_regs if reg in self.tainted_regs.get(caller_func_ea, {}))
+        tainted_args = tuple(
+            reg for reg in arg_regs if reg in self.tainted_regs.get(caller_func_ea, {})
+        )
         cache_key = (callee_ea, depth, tainted_args)
         if cache_key in self._ip_cache:
             return
@@ -737,27 +845,38 @@ class DataFlowAnalyzer(IncrementalAnalyzer):
                 if mnem == "call":
                     try:
                         nxt = idc.get_operand_value(head, 0)
-                    except Exception:
+                    except (TypeError, ValueError, AttributeError, RuntimeError):
                         continue
                     count += 1
                     if count > self.ip_fanout:
                         break
-                    self._propagate_taint_to_callee(head, nxt, callee.start_ea, depth - 1, seen)
+                    self._propagate_taint_to_callee(
+                        head, nxt, callee.start_ea, depth - 1, seen
+                    )
 
-    def _propagate_taint_from_callee(self, call_ea: int, callee_ea: int, caller_func_ea: int):
+    def _propagate_taint_from_callee(
+        self, call_ea: int, callee_ea: int, caller_func_ea: int
+    ):
         """Propagate tainted return register from callee into caller."""
         callee = ida_funcs.get_func(callee_ea)
         if not callee:
             return
         ret_reg = abi.return_reg()
-        if callee.start_ea in self.tainted_regs and ret_reg in self.tainted_regs[callee.start_ea]:
-            self.tainted_regs.setdefault(caller_func_ea, {})[ret_reg] = self.tainted_regs[callee.start_ea][ret_reg]
+        if (
+            callee.start_ea in self.tainted_regs
+            and ret_reg in self.tainted_regs[callee.start_ea]
+        ):
+            self.tainted_regs.setdefault(caller_func_ea, {})[ret_reg] = (
+                self.tainted_regs[callee.start_ea][ret_reg]
+            )
         # Summary-based: if any tainted arg matches summary, taint return
         summary = self.taint_summaries.get(callee.start_ea, set())
         if summary and caller_func_ea in self.tainted_regs:
             for reg in summary:
                 if reg in self.tainted_regs[caller_func_ea]:
-                    self.tainted_regs.setdefault(caller_func_ea, {})[ret_reg] = self.tainted_regs[caller_func_ea][reg]
+                    self.tainted_regs.setdefault(caller_func_ea, {})[ret_reg] = (
+                        self.tainted_regs[caller_func_ea][reg]
+                    )
                     break
         self.interprocedural.apply(call_ea, callee.start_ea, caller_func_ea)
 
@@ -804,7 +923,7 @@ class DataFlowAnalyzer(IncrementalAnalyzer):
     def _global_mem_key(self, ea: int, op_idx: int) -> Optional[str]:
         try:
             addr = idc.get_operand_value(ea, op_idx)
-        except Exception:
+        except (TypeError, ValueError, AttributeError, RuntimeError):
             return None
         if addr in (None, idc.BADADDR):
             return None
@@ -858,7 +977,10 @@ class DataFlowAnalyzer(IncrementalAnalyzer):
         if len(arg_regs) < 2:
             return
         dst = arg_regs[0]
-        if any(k in name for k in ("memcpy", "memmove", "strcpy", "strncpy", "strcat", "strncat")):
+        if any(
+            k in name
+            for k in ("memcpy", "memmove", "strcpy", "strncpy", "strcat", "strncat")
+        ):
             src = arg_regs[1]
             if src in regs:
                 conf = regs[src][1]
@@ -870,17 +992,28 @@ class DataFlowAnalyzer(IncrementalAnalyzer):
                     elif size is not None and size > 256:
                         conf *= 1.05
                 regs[dst] = (regs[src][0], min(1.0, conf))
-                self.taint_kinds_regs.setdefault(self._current_func_ea, {})[dst] = \
+                self.taint_kinds_regs.setdefault(self._current_func_ea, {})[dst] = (
                     self.taint_kinds_regs.get(self._current_func_ea, {}).get(src, "ptr")
+                )
                 if size is not None:
                     aliases = self._heap_aliases.get(self._current_func_ea, {})
                     if dst in aliases:
                         prefix = f"heap:{aliases[dst]}"
-                        self._record_mem_interval(prefix, 0, size, self.taint_kinds_regs[self._current_func_ea].get(dst, "ptr"), conf)
+                        self._record_mem_interval(
+                            prefix,
+                            0,
+                            size,
+                            self.taint_kinds_regs[self._current_func_ea].get(
+                                dst, "ptr"
+                            ),
+                            conf,
+                        )
                     if dst in aliases and src in aliases:
                         src_prefix = f"heap:{aliases[src]}"
                         dst_prefix = f"heap:{aliases[dst]}"
-                        kind = self.taint_kinds_regs[self._current_func_ea].get(src, "ptr")
+                        kind = self.taint_kinds_regs[self._current_func_ea].get(
+                            src, "ptr"
+                        )
                         self._record_mem_interval(dst_prefix, 0, size, kind, conf)
                 else:
                     aliases = self._heap_aliases.get(self._current_func_ea, {})
@@ -890,35 +1023,44 @@ class DataFlowAnalyzer(IncrementalAnalyzer):
                         intervals = self._mem_intervals.get(self._current_func_ea, [])
                         for pfx, start, rng, kind, conf2 in intervals:
                             if pfx == src_prefix:
-                                self._record_mem_interval(dst_prefix, start, rng, kind, conf2)
+                                self._record_mem_interval(
+                                    dst_prefix, start, rng, kind, conf2
+                                )
                 return
         for reg in arg_regs[1:]:
             if reg in regs:
                 regs[dst] = regs[reg]
-                self.taint_kinds_regs.setdefault(self._current_func_ea, {})[dst] = \
+                self.taint_kinds_regs.setdefault(self._current_func_ea, {})[dst] = (
                     self.taint_kinds_regs.get(self._current_func_ea, {}).get(reg, "ptr")
+                )
                 return
 
     def _handle_jump_table_taint(self, jmp_ea: int, func, regs: dict):
         for _reg, (src, conf) in regs.items():
             for tgt in self._resolve_switch_targets(jmp_ea, func):
                 if self.is_valid_reference(tgt):
-                    self.add_xref(src, tgt, "tainted_indirect_call", max(0.5, conf * 0.85))
+                    self.add_xref(
+                        src, tgt, "tainted_indirect_call", max(0.5, conf * 0.85)
+                    )
 
     def _resolve_switch_targets(self, jmp_ea: int, func) -> List[int]:
         if not hasattr(idaapi, "get_switch_info_ex"):
             return []
         try:
             si = idaapi.get_switch_info_ex(jmp_ea)
-        except Exception:
+        except (TypeError, ValueError, AttributeError, RuntimeError):
             return []
         if not si:
             return []
         try:
             jtable = si.jumps
             size = si.get_jtable_size() if hasattr(si, "get_jtable_size") else 0
-            esize = si.get_jtable_element_size() if hasattr(si, "get_jtable_element_size") else 4
-        except Exception:
+            esize = (
+                si.get_jtable_element_size()
+                if hasattr(si, "get_jtable_element_size")
+                else 4
+            )
+        except (TypeError, ValueError, AttributeError, RuntimeError):
             return []
         if not jtable or size <= 0:
             return []
@@ -927,19 +1069,23 @@ class DataFlowAnalyzer(IncrementalAnalyzer):
             ea = jtable + i * esize
             try:
                 target = idc.get_qword(ea) if esize == 8 else idc.get_wide_dword(ea)
-            except Exception:
+            except (TypeError, ValueError, AttributeError, RuntimeError):
                 continue
             if target and func.start_ea <= target < func.end_ea:
                 results.append(target)
         return results
 
-    def _resolve_arg_immediate(self, call_ea: int, reg: str, max_back: int = 8) -> Optional[int]:
+    def _resolve_arg_immediate(
+        self, call_ea: int, reg: str, max_back: int = 8
+    ) -> Optional[int]:
         return self.arg_resolver.resolve_arg_immediate(call_ea, reg, max_back=max_back)
 
     def _heap_key_offset(self, key: str) -> Optional[int]:
         return self.heap_tracker.heap_key_offset(key)
 
-    def _record_mem_interval(self, prefix: str, start: int, size: int, kind: str, conf: float):
+    def _record_mem_interval(
+        self, prefix: str, start: int, size: int, kind: str, conf: float
+    ):
         return self.heap_tracker.record_mem_interval(prefix, start, size, kind, conf)
 
     def _ret_taint_confidence(self, callee_ea: int) -> float:
@@ -954,7 +1100,7 @@ class DataFlowAnalyzer(IncrementalAnalyzer):
                     if ret.is_ptr() or ret.is_array():
                         return 0.95
                     return 0.85
-        except Exception:
+        except (TypeError, ValueError, AttributeError, RuntimeError):
             return 0.9
         return 0.9
 
@@ -966,7 +1112,7 @@ class DataFlowAnalyzer(IncrementalAnalyzer):
                     return "go"
                 if "rust" in name:
                     return "rust"
-        except Exception:
+        except (TypeError, ValueError, AttributeError, RuntimeError):
             pass
         try:
             for func_ea in idautils.Functions():
@@ -979,7 +1125,7 @@ class DataFlowAnalyzer(IncrementalAnalyzer):
                     return "go"
                 if name.startswith("_ZN") or name.startswith("core::"):
                     return "rust"
-        except Exception:
+        except (TypeError, ValueError, AttributeError, RuntimeError):
             pass
         return "unknown"
 
@@ -1016,9 +1162,12 @@ class DataFlowAnalyzer(IncrementalAnalyzer):
                     try:
                         dst_type = idc.get_operand_type(ea, 0)
                         src_type = idc.get_operand_type(ea, 1)
-                    except Exception:
+                    except (TypeError, ValueError, AttributeError, RuntimeError):
                         continue
-                    if dst_type == idc.o_reg and idc.print_operand(ea, 0).lower() == reg:
+                    if (
+                        dst_type == idc.o_reg
+                        and idc.print_operand(ea, 0).lower() == reg
+                    ):
                         if src_type == idc.o_reg:
                             src_reg = idc.print_operand(ea, 1).lower()
                             return src_reg in self.tainted_regs.get(func.start_ea, {})
@@ -1026,7 +1175,7 @@ class DataFlowAnalyzer(IncrementalAnalyzer):
                             return False
                         return True
             return True
-        except Exception:
+        except (TypeError, ValueError, AttributeError, RuntimeError):
             return True
 
     def _dominates_last_def(self, call_ea: int, reg: str, func, call_block) -> bool:
@@ -1034,7 +1183,7 @@ class DataFlowAnalyzer(IncrementalAnalyzer):
             return False
         try:
             dom = ida_gdl.FlowChart(func).calculate_dominators()
-        except Exception:
+        except (TypeError, ValueError, AttributeError, RuntimeError):
             return False
         last_def = None
         ea = call_ea
@@ -1046,7 +1195,7 @@ class DataFlowAnalyzer(IncrementalAnalyzer):
             if mnem in self._mov_mnems():
                 try:
                     dst_type = idc.get_operand_type(ea, 0)
-                except Exception:
+                except (TypeError, ValueError, AttributeError, RuntimeError):
                     continue
                 if dst_type == idc.o_reg and idc.print_operand(ea, 0).lower() == reg:
                     last_def = ea
@@ -1062,7 +1211,7 @@ class DataFlowAnalyzer(IncrementalAnalyzer):
             return False
         try:
             return dom.is_dom(def_block.id, call_block.id)
-        except Exception:
+        except (TypeError, ValueError, AttributeError, RuntimeError):
             return False
 
     def _hexrays_taint_flow(self, func_ea: int) -> List[Tuple[int, int, str, float]]:
@@ -1073,7 +1222,7 @@ class DataFlowAnalyzer(IncrementalAnalyzer):
             return []
         try:
             cfunc = ida_hexrays.decompile(func.start_ea)
-        except Exception:
+        except (TypeError, ValueError, AttributeError, RuntimeError):
             return []
         results: List[Tuple[int, int, str, float]] = []
         tainted = set()
@@ -1090,10 +1239,13 @@ class DataFlowAnalyzer(IncrementalAnalyzer):
                 if hasattr(ida_hexrays, "cot_ptr") and expr.op == ida_hexrays.cot_ptr:
                     if hasattr(expr, "x"):
                         return callee_name(expr.x)
-                if hasattr(ida_hexrays, "cot_memptr") and expr.op == ida_hexrays.cot_memptr:
+                if (
+                    hasattr(ida_hexrays, "cot_memptr")
+                    and expr.op == ida_hexrays.cot_memptr
+                ):
                     if hasattr(expr, "m") and hasattr(expr.m, "obj_ea"):
                         return idc.get_func_name(expr.m.obj_ea).lower()
-            except Exception:
+            except (TypeError, ValueError, AttributeError, RuntimeError):
                 return None
             return None
 
@@ -1104,7 +1256,7 @@ class DataFlowAnalyzer(IncrementalAnalyzer):
                 if e.op == ida_hexrays.cot_call:
                     name = callee_name(e.x)
                     return bool(name and any(s in name for s in sources))
-            except Exception:
+            except (TypeError, ValueError, AttributeError, RuntimeError):
                 return False
             return False
 
@@ -1125,24 +1277,31 @@ class DataFlowAnalyzer(IncrementalAnalyzer):
                             try:
                                 for arg in e.a:
                                     if is_tainted_expr(arg):
-                                        results.append((arg.ea, e.ea, f"taint_flow_{name}", 0.75))
-                            except Exception:
+                                        results.append(
+                                            (arg.ea, e.ea, f"taint_flow_{name}", 0.75)
+                                        )
+                            except (
+                                TypeError,
+                                ValueError,
+                                AttributeError,
+                                RuntimeError,
+                            ):
                                 pass
-                except Exception:
+                except (TypeError, ValueError, AttributeError, RuntimeError):
                     pass
                 return 0
 
         v = HxVisitor()
         try:
             v.apply_to(cfunc.body, None)
-        except Exception:
+        except (TypeError, ValueError, AttributeError, RuntimeError):
             return results
         for src, dst, kind, conf in results:
             if src and dst:
                 self.add_xref(src, dst, kind, conf)
                 try:
                     self.add_evidence(src, dst, "hexrays")
-                except Exception:
+                except (TypeError, ValueError, AttributeError, RuntimeError):
                     pass
         return results
 

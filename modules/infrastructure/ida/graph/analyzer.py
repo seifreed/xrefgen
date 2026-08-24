@@ -13,6 +13,7 @@ try:
 except (TypeError, ValueError, AttributeError, RuntimeError):
     ida_hexrays = None
 import ida_segment
+from modules.infrastructure.ida.compat import is_64bit, procname
 try:
     import ida_typeinf
 except (TypeError, ValueError, AttributeError, RuntimeError):
@@ -37,7 +38,7 @@ class GraphAnalyzer(IncrementalAnalyzer):
         self.analysis_scope = "global"
         self.supports_incremental = False
         try:
-            self._procname = idaapi.get_inf_structure().procname.lower()
+            self._procname = procname()
         except (TypeError, ValueError, AttributeError, RuntimeError):
             self._procname = ""
         self._tuning_defaults = {
@@ -483,7 +484,7 @@ class GraphAnalyzer(IncrementalAnalyzer):
 
     def _read_ptr(self, ea: int) -> Optional[int]:
         try:
-            is64 = idaapi.get_inf_structure().is_64bit()
+            is64 = is_64bit()
         except (TypeError, ValueError, AttributeError, RuntimeError):
             is64 = False
         try:
@@ -509,7 +510,7 @@ class GraphAnalyzer(IncrementalAnalyzer):
                         lname = name.lower()
                         if "vtable" in lname or "vftable" in lname or "??_7" in name:
                             is_rtti = True
-                            ptr = 8 if idaapi.get_inf_structure().is_64bit() else 4
+                            ptr = 8 if is_64bit() else 4
                             min_size = self.vtable_min_len * ptr
                             if ida_typeinf is not None:
                                 try:

@@ -10,6 +10,7 @@ import ida_kernwin
 import ida_nalt
 import idc
 from modules.presentation.logger import info
+from modules import __version__
 
 
 class XrefGenPresenter:
@@ -225,7 +226,7 @@ class XrefGenPresenter:
         info(f"Profile written to: {path}")
 
     def _write_details_header(self, f_det, binary_path: str, total: int):
-        f_det.write("# XrefGen v2.0 - Cross-Reference Analysis Results\n")
+        f_det.write(f"# XrefGen v{__version__} - Cross-Reference Analysis Results\n")
         f_det.write(f"# Binary: {os.path.basename(binary_path)}\n")
         f_det.write(f"# Generated: {time.strftime('%Y-%m-%d %H:%M:%S')}\n")
         f_det.write(f"# Total xrefs: {total}\n")

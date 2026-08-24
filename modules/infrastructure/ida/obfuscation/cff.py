@@ -20,7 +20,7 @@ class CFFDetector:
     def __init__(self, analyzer: IDAXrefAnalyzer):
         self.analyzer = analyzer
         cfg = getattr(analyzer, "config", {}) if analyzer else {}
-        obf = cfg.get("modules", {}).get("obfuscation", {})
+        obf = cfg.get("modules", {}).get("obfuscation", {}) or cfg
         tuning = obf.get("tuning_table", {}) if isinstance(obf.get("tuning_table", {}), dict) else {}
         self.max_dispatcher_size = int(tuning.get("max_dispatcher_size", 1000))
         self.min_block_refs = int(tuning.get("cff_min_block_refs", 5))
@@ -41,15 +41,16 @@ class CFFDetector:
     def analyze_function(self, func_ea: int, func) -> List[Tuple[int, int, str, float]]:
         results = []
         mnem_cache = {}
-        dispatcher = self._find_dispatcher_block(func, mnem_cache)
-        if dispatcher:
+        dispatchers = self._find_dispatcher_candidates(func, mnem_cache)
+        if dispatchers:
             self.flattened_functions.add(func_ea)
-            self.dispatcher_blocks[func_ea] = dispatcher
-            real_flow = self._resolve_flattened_flow(func, dispatcher)
-            for source, target, conf in real_flow:
-                conf_val = min(conf, self.resolved_confidence) if conf is not None else self.resolved_confidence
-                self.analyzer.add_xref(source, target, "cff_resolved", conf_val)
-                results.append((source, target, "cff_resolved", conf_val))
+            self.dispatcher_blocks[func_ea] = dispatchers
+            for dispatcher in dispatchers:
+                real_flow = self._resolve_flattened_flow(func, dispatcher)
+                for source, target, conf in real_flow:
+                    conf_val = min(conf, self.resolved_confidence) if conf is not None else self.resolved_confidence
+                    self.analyzer.add_xref(source, target, "cff_resolved", conf_val)
+                    results.append((source, target, "cff_resolved", conf_val))
         return results
 
     def _iter_functions(self):
@@ -58,19 +59,23 @@ class CFFDetector:
             if func:
                 yield func_ea, func
 
-    def _find_dispatcher_block(self, func, mnem_cache: Optional[dict] = None) -> Optional[int]:
+    def _find_dispatcher_candidates(self, func, mnem_cache: Optional[dict] = None) -> List[int]:
         block_refs = {}
         for head in idautils.Heads(func.start_ea, func.end_ea):
             for xref in idautils.XrefsTo(head):
                 if func.start_ea <= xref.frm < func.end_ea:
                     block_refs[head] = block_refs.get(head, 0) + 1
-        if not block_refs:
-            return None
-        dispatcher_candidate = max(block_refs.items(), key=lambda x: x[1])
-        if dispatcher_candidate[1] > self.min_block_refs:
-            if self._has_dispatcher_pattern(dispatcher_candidate[0], func.end_ea, mnem_cache):
-                return dispatcher_candidate[0]
-        return None
+        
+        candidates = []
+        # Find all blocks that meet the dispatcher criteria, not just the max
+        for head, count in block_refs.items():
+            if count >= self.min_block_refs:
+                if self._has_dispatcher_pattern(head, func.end_ea, mnem_cache):
+                    candidates.append(head)
+        
+        # Sort by reference count, descending
+        candidates.sort(key=lambda x: block_refs[x], reverse=True)
+        return candidates
 
     def _has_dispatcher_pattern(self, ea: int, end_ea: int, mnem_cache: Optional[dict] = None) -> bool:
         comparisons = 0

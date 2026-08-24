@@ -2,6 +2,7 @@
 
 import json
 import os
+import copy
 from typing import Dict, Any, List
 
 
@@ -167,7 +168,7 @@ class Config:
                 "call_chain_min_length": 2,
             },
             "ml": {
-                "enabled": True,
+                "enabled": False,
                 "model_path": None,
                 "similarity_threshold": 0.85,
                 "use_embeddings": False,
@@ -184,13 +185,13 @@ class Config:
                 "skip_slow_graph": True,
             },
             "ida_features": {
-                "enabled": True,
+                "enabled": False,
                 "use_lumina": False,
                 "use_microcode": True,
                 "use_type_libraries": True,
             },
             "interactive": {
-                "enabled": True,
+                "enabled": False,
                 "preview_mode": True,
                 "custom_filters": [],
             },
@@ -225,8 +226,8 @@ class Config:
                     return self._merge_configs(self.DEFAULT_CONFIG, user_config)
             except (json.JSONDecodeError, KeyError, OSError) as e:
                 print(f"[XrefGen] Error loading config: {e}, using defaults")
-                return self.DEFAULT_CONFIG.copy()
-        return self.DEFAULT_CONFIG.copy()
+                return copy.deepcopy(self.DEFAULT_CONFIG)
+        return copy.deepcopy(self.DEFAULT_CONFIG)
 
     def validate_config(self, config: Dict[str, Any]) -> List[str]:
         """Validate configuration keys and report unknown/invalid entries."""
@@ -372,7 +373,7 @@ class Config:
 
     def _merge_configs(self, default: Dict, user: Dict) -> Dict:
         """Recursively merge user config with defaults."""
-        result = default.copy()
+        result = copy.deepcopy(default)
         for key, value in user.items():
             if (
                 key in result
