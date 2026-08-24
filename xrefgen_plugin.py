@@ -1,7 +1,16 @@
 """IDA Pro plugin entry for XrefGen (IDA 9.2+)."""
 
+import os
+import sys
+
 import idaapi
 import ida_kernwin
+
+
+# The installer keeps the core under IDAUSR/scripts/xrefgen.
+_CORE_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "scripts", "xrefgen")
+if os.path.isdir(_CORE_DIR) and _CORE_DIR not in sys.path:
+    sys.path.insert(0, _CORE_DIR)
 
 
 class XrefGenPlugin(idaapi.plugin_t):
