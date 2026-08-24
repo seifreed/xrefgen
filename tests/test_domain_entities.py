@@ -2,6 +2,7 @@ import unittest
 
 from modules.domain.entities import Xref
 from modules.domain.analyzer import XrefAnalyzer
+from modules.domain.results import Finding, Relationship, XrefCandidate
 
 
 class DummyAnalyzer(XrefAnalyzer):
@@ -20,7 +21,19 @@ class DomainEntityTests(unittest.TestCase):
     def test_analyzer_add_xref(self):
         analyzer = DummyAnalyzer()
         analyzer.add_xref(1, 2, "test", 0.5)
-        self.assertEqual(analyzer.get_results(), [(1, 2, "test", 0.55)])
+        self.assertEqual(analyzer.get_results(), [(1, 2, "test", 0.5)])
+
+    def test_typed_emitters_preserve_result_role(self):
+        analyzer = DummyAnalyzer()
+        candidate = analyzer.emit_control_flow(1, 2, "indirect_call", 0.8, ("graph",))
+        finding = analyzer.emit_finding(3, 4, "arm64_adrp_add", 0.7)
+        relationship = analyzer.emit_relationship(5, 6, "call_chain_depth_1", 0.6)
+        self.assertIsInstance(candidate, XrefCandidate)
+        self.assertEqual(tuple(candidate), (1, 2, "indirect_call", 0.8))
+        self.assertIsInstance(finding, Finding)
+        self.assertIsInstance(relationship, Relationship)
+        self.assertEqual(finding.kind, "arm64_adrp_add")
+        self.assertEqual(relationship.kind, "call_chain_depth_1")
 
 
 if __name__ == "__main__":

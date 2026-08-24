@@ -198,10 +198,7 @@ class GraphAnalyzer(IncrementalAnalyzer):
         self._edges_by_func.setdefault(source, set()).add(target)
 
     def _add_call_edge_xref(self, source: int, target: int, conf: float = 0.9):
-        self.add_xref(source, target, "call_edge", conf)
-        if hasattr(self, "add_evidence"):
-            self.add_evidence(source, target, "graph")
-        return (source, target, "call_edge", conf)
+        return self.emit_control_flow(source, target, "call_edge", conf, ("graph",))
 
     def _analyze_hubs(self) -> List[Tuple[int, int, str, float]]:
         results = []

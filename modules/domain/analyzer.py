@@ -1,8 +1,9 @@
 """Domain-level analyzer abstractions (IDA-agnostic)."""
 
 from abc import ABC, abstractmethod
-from typing import Dict, List, Tuple, Any
+from typing import Dict, List, Tuple, Any, Iterable
 from modules.domain.evidence import EvidenceCollector
+from modules.domain.results import XrefCandidate, Finding, Relationship
 
 
 class XrefAnalyzer(ABC):
@@ -38,6 +39,39 @@ class XrefAnalyzer(ABC):
 
     def add_evidence(self, source: int, target: int, etype: str):
         self._evidence.add(source, target, etype)
+
+    def emit_control_flow(
+        self,
+        source: int,
+        target: int,
+        kind: str,
+        confidence: float,
+        evidence: Iterable[str] = (),
+    ) -> XrefCandidate:
+        self.add_xref(source, target, kind, confidence)
+        for etype in evidence:
+            self.add_evidence(source, target, etype)
+        return XrefCandidate(source, target, kind, confidence, self.get_name(), tuple(evidence))
+
+    def emit_finding(
+        self,
+        source: int,
+        target: int,
+        kind: str,
+        confidence: float,
+        evidence: Iterable[str] = (),
+    ) -> Finding:
+        return Finding(source, target, kind, confidence, self.get_name(), tuple(evidence))
+
+    def emit_relationship(
+        self,
+        source: int,
+        target: int,
+        kind: str,
+        confidence: float,
+        evidence: Iterable[str] = (),
+    ) -> Relationship:
+        return Relationship(source, target, kind, confidence, self.get_name(), tuple(evidence))
 
     @property
     def evidence_counts(self):

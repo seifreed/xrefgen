@@ -31,12 +31,11 @@ class WrapperDetector:
                         call_ea = head
             if call_count == 1 and call_ea and call_target and self.a.is_valid_reference(call_target):
                 conf = self.a.confidence("wrapper_call")
-                self.a.add_xref(call_ea, call_target, "wrapper_call", conf)
-                try:
-                    self.a.add_evidence(call_ea, call_target, "wrapper")
-                except (TypeError, ValueError, AttributeError, RuntimeError):
-                    pass
-                results.append((call_ea, call_target, "wrapper_call", conf))
+                results.append(
+                    self.a.emit_control_flow(
+                        call_ea, call_target, "wrapper_call", conf, ("wrapper",)
+                    )
+                )
         return results
 
 
