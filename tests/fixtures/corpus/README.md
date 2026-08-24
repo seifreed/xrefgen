@@ -5,6 +5,11 @@ Each fixture has a ground-truth JSON file consumed by
 regression: IDA already records the indirect function-pointer reference, so
 XrefGen must export no duplicate xref.
 
+The symbolic positive fixture can be run inside IDA with
+`XREFGEN_ROOT=/path/to/xrefgen XREFGEN_EXPECTED_JSON=... scripts/ida_corpus_tests.py`;
+it removes the known direct call edge in the temporary IDB copy and checks
+that GraphAnalyzer reconstructs the real call instruction and target.
+
 Build it for an IDA integration run with:
 
 ```bash

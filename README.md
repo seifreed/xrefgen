@@ -152,6 +152,10 @@ python scripts/compare_ground_truth.py actual.json expected.json \
   --min-precision 0.95 --min-recall 0.70 --fail-on-false-positive
 ```
 
+For symbolic fixtures, execute `scripts/ida_corpus_tests.py` inside IDA with
+`XREFGEN_ROOT` and `XREFGEN_EXPECTED_JSON` set to the repository and fixture
+paths. The runner uses a temporary IDB copy and never saves changes.
+
 Build the source corpus (C/C++, Rust, Go, ARM64, MIPS, and obfuscation
 fixtures) with:
 

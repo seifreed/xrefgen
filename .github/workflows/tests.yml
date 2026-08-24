@@ -28,6 +28,7 @@ jobs:
               "xrefgen/docs/compatibility.md",
               "xrefgen/SECURITY.md",
               "xrefgen/scripts/build_corpus.py",
+              "xrefgen/scripts/ida_corpus_tests.py",
               "xrefgen/scripts/install_ida.py",
           }
           with zipfile.ZipFile(Path("dist/xrefgen-ci.zip")) as archive:
