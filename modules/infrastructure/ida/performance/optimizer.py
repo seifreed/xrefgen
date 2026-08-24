@@ -16,7 +16,6 @@ import ida_bytes
 import ida_segment
 import ida_kernwin
 import ida_nalt
-import ida_pro
 from modules.domain.analyzer import XrefAnalyzer
 from modules.infrastructure.ida.base import IDAXrefAnalyzer
 from modules.infrastructure.ida.utils.function_cache import FunctionBoundsCache
