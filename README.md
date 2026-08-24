@@ -144,7 +144,8 @@ Important output keys:
 
 ## Validation
 
-Run `scripts/ida_real_tests.py` inside IDA for an integration smoke test. To
+Run `scripts/ida_real_tests.py` inside IDA for an integration smoke test, with
+`XREFGEN_ROOT` set when IDA executes scripts through a wrapper. To
 measure a corpus export, use:
 
 ```bash

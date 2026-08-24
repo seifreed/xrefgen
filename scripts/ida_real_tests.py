@@ -4,9 +4,15 @@ Usage: In the IDA console, execute this file from the repository root.
 import json
 import os
 import copy
+import sys
 import idautils
 import ida_nalt
 import idc
+
+ROOT = os.environ.get("XREFGEN_ROOT", os.getcwd())
+if ROOT not in sys.path:
+    sys.path.insert(0, ROOT)
+
 from modules.application.config import Config
 from modules.application.registry import build_modules
 from modules.domain.results import (
