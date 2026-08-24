@@ -37,6 +37,7 @@ class GraphAnalyzer(IncrementalAnalyzer):
         super().__init__(config)
         self.analysis_scope = "global"
         self.supports_incremental = False
+        self.skip_slow_graph = bool(config.get("skip_slow_graph", False))
         try:
             self._procname = procname()
         except (TypeError, ValueError, AttributeError, RuntimeError):
@@ -136,6 +137,10 @@ class GraphAnalyzer(IncrementalAnalyzer):
         self._build_call_graph()
         results.extend(self._call_edge_results)
         self._set_noise_factor()
+
+        # Core call-edge resolution remains available in constrained runs.
+        if self.skip_slow_graph:
+            return results
         
         # Analyze call chains from entry points
         chains = self._analyze_call_chains()

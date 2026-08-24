@@ -87,14 +87,11 @@ class XrefGen:
 
         # Register all modules
         self._register_modules()
-        # Optional throttling for heavy modules
+        # Keep graph-based control-flow resolution enabled when slow insights are skipped.
         if self.config.get("modules.performance.skip_slow_graph", False):
             for module in self.manager.modules:
-                if hasattr(module, "get_name") and module.get_name() == "GraphAnalyzer":
-                    try:
-                        module.enabled = False
-                    except (TypeError, ValueError, AttributeError, RuntimeError):
-                        pass
+                if getattr(module, "get_name", lambda: "")() == "GraphAnalyzer":
+                    module.skip_slow_graph = True
 
         # Statistics
         self.start_time = None
