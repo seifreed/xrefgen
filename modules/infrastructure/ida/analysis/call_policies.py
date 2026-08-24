@@ -20,10 +20,9 @@ class TaintSourcePolicy:
             ret_reg = abi.return_reg()
             regs[ret_reg] = (info.call_ea, self.a._ret_taint_confidence(info.target_ea))
             self.a.taint_kinds_regs.setdefault(self.a._current_func_ea, {})[ret_reg] = self.a.taint_rules.source_kind(info.name)
-            try:
+            # Use safe call to add_evidence if it exists on the analyzer
+            if hasattr(self.a, "add_evidence"):
                 self.a.add_evidence(info.call_ea, info.call_ea, "dataflow")
-            except Exception:
-                pass
 
 
 class NumericParserPolicy:

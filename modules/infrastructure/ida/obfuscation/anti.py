@@ -23,7 +23,7 @@ class AntiAnalysisDetector:
                 try:
                     target = idc.get_operand_value(head, 0)
                     name = idc.get_func_name(target).lower()
-                except Exception:
+                except (TypeError, ValueError, AttributeError, RuntimeError):
                     name = ""
                 if any(p in name for p in self.api_patterns):
                     self.analyzer.add_xref(head, target, "anti_analysis", 0.8)

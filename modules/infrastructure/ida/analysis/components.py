@@ -1,24 +1,26 @@
 """Helper components for DataFlowAnalyzer."""
+
 from typing import Optional, Tuple, List
 import idaapi
 import idautils
 import idc
 import ida_funcs
+
 try:
     import ida_frame
-except Exception:
+except ImportError:
     ida_frame = None
 try:
     import ida_struct
-except Exception:
+except ImportError:
     ida_struct = None
 try:
     import ida_typeinf
-except Exception:
+except ImportError:
     ida_typeinf = None
 try:
     import ida_bytes
-except Exception:
+except ImportError:
     ida_bytes = None
 
 from modules.infrastructure.ida.utils import abi
@@ -34,7 +36,7 @@ class ArgumentResolver:
         callee_ea = None
         try:
             callee_ea = idc.get_operand_value(call_ea, 0)
-        except Exception:
+        except (TypeError, ValueError, AttributeError, RuntimeError):
             callee_ea = None
         if callee_ea is None or callee_ea == idc.BADADDR or ida_typeinf is None:
             return arg_regs
@@ -45,7 +47,7 @@ class ArgumentResolver:
                 if tinfo.get_func_details(ftd):
                     argc = ftd.size()
                     return arg_regs[: max(0, argc)]
-        except Exception:
+        except (TypeError, ValueError, AttributeError, RuntimeError):
             return arg_regs
         return arg_regs
 
@@ -67,7 +69,7 @@ class ArgumentResolver:
                         return "ptr"
                     if arg_t.is_integral() or arg_t.is_enum():
                         return "num"
-        except Exception:
+        except (TypeError, ValueError, AttributeError, RuntimeError):
             return None
         return None
 
@@ -75,7 +77,7 @@ class ArgumentResolver:
         try:
             regs = abi.arg_registers()
             return regs.index(reg) if reg in regs else None
-        except Exception:
+        except (TypeError, ValueError, AttributeError, RuntimeError):
             return None
 
     def func_arg_is_ptr(self, func_ea: int, arg_index: int) -> bool:
@@ -90,11 +92,13 @@ class ArgumentResolver:
                         return False
                     arg_t = ftd[arg_index].type
                     return arg_t.is_ptr() or arg_t.is_array()
-        except Exception:
+        except (TypeError, ValueError, AttributeError, RuntimeError):
             return False
         return False
 
-    def resolve_arg_immediate(self, call_ea: int, reg: str, max_back: int = 8) -> Optional[int]:
+    def resolve_arg_immediate(
+        self, call_ea: int, reg: str, max_back: int = 8
+    ) -> Optional[int]:
         res = scan_back_for_reg_source(call_ea, reg, max_back=max_back)
         if not res:
             return None
@@ -102,7 +106,7 @@ class ArgumentResolver:
         if src_type == idc.o_imm:
             try:
                 return int(src_val)
-            except Exception:
+            except (TypeError, ValueError, AttributeError, RuntimeError):
                 return None
         return None
 
@@ -118,7 +122,11 @@ class StringEvidence:
         _ea, src_type, src_val = res
         if src_type in (idc.o_imm, idc.o_mem, idc.o_displ):
             addr = src_val
-            if ida_bytes is not None and addr and ida_bytes.is_strlit(ida_bytes.get_flags(addr)):
+            if (
+                ida_bytes is not None
+                and addr
+                and ida_bytes.is_strlit(ida_bytes.get_flags(addr))
+            ):
                 return True
         return False
 
@@ -132,7 +140,7 @@ class StringEvidence:
             if mnem in ("mov", "lea"):
                 try:
                     src_type = idc.get_operand_type(ea, 1)
-                except Exception:
+                except (TypeError, ValueError, RuntimeError):
                     continue
                 if src_type in (idc.o_imm, idc.o_mem):
                     addr = idc.get_operand_value(ea, 1)
@@ -140,7 +148,7 @@ class StringEvidence:
                         s = idc.get_strlit_contents(addr)
                         if s and b"%" in s:
                             return True
-                    except Exception:
+                    except (TypeError, ValueError, RuntimeError):
                         continue
         return False
 
@@ -184,11 +192,15 @@ class HeapTracker:
         val = int(m.group(2), 16)
         return val if m.group(1) == "+" else -val
 
-    def record_mem_interval(self, prefix: str, start: int, size: int, kind: str, conf: float):
+    def record_mem_interval(
+        self, prefix: str, start: int, size: int, kind: str, conf: float
+    ):
         func_ea = self.a._current_func_ea
         if not func_ea:
             return
-        self.a._mem_intervals.setdefault(func_ea, []).append((prefix, start, size, kind, conf))
+        self.a._mem_intervals.setdefault(func_ea, []).append(
+            (prefix, start, size, kind, conf)
+        )
 
     def stack_var_key(self, ea: int, op_idx: int) -> Optional[str]:
         try:
@@ -201,7 +213,7 @@ class HeapTracker:
                 if size:
                     return f"stk:{sv}:{size}{member}"
                 return f"stk:{sv}{member}"
-        except Exception:
+        except (TypeError, ValueError, AttributeError, RuntimeError):
             return None
         return None
 
@@ -219,7 +231,7 @@ class HeapTracker:
             if not m:
                 return None
             return ida_struct.get_member_size(m)
-        except Exception:
+        except (TypeError, ValueError, AttributeError, RuntimeError):
             return None
 
     def stack_var_member_name(self, ea: int, name: str, op_idx: int) -> str:
@@ -244,7 +256,7 @@ class HeapTracker:
                 return ""
             sub_name = ida_struct.get_member_name(sub.id)
             return f".{sub_name}" if sub_name else ""
-        except Exception:
+        except (TypeError, ValueError, AttributeError, RuntimeError):
             return ""
 
 
@@ -256,7 +268,7 @@ class CFGWalker:
         try:
             for block in idaapi.FlowChart(func, flags=idaapi.FC_PREDS):
                 yield block
-        except Exception:
+        except (TypeError, ValueError, AttributeError, RuntimeError):
             return
 
     def reachable_block_ids(self, entry_block):
@@ -324,7 +336,7 @@ class CFGWalker:
         rd_out = {}
         try:
             blocks = list(self.iter_basic_blocks(func))
-        except Exception:
+        except (TypeError, ValueError, AttributeError, RuntimeError):
             return rd_in
         gen = {}
         kill = {}
@@ -336,7 +348,7 @@ class CFGWalker:
                 if mnem in self.a._mov_mnems() | {"mov"}:
                     try:
                         dst_type = idc.get_operand_type(head, 0)
-                    except Exception:
+                    except (TypeError, ValueError, RuntimeError):
                         dst_type = idc.o_void
                     if dst_type == idc.o_reg:
                         reg = idc.print_operand(head, 0).lower()
@@ -375,14 +387,16 @@ class TaintMovement:
         try:
             dst_type = op_type(ea, 0)
             src_type = op_type(ea, 1)
-        except Exception:
+        except (TypeError, ValueError, RuntimeError):
             return
         if dst_type == idc.o_reg:
             self._mov_to_reg(ea, func_ea, regs, mem, src_type, op_str)
         if dst_type in [idc.o_displ, idc.o_mem] and src_type == idc.o_reg:
             self._mov_to_mem(ea, func_ea, regs, mem, op_str)
 
-    def _mov_to_reg(self, ea: int, func_ea: int, regs: dict, mem: dict, src_type, op_str):
+    def _mov_to_reg(
+        self, ea: int, func_ea: int, regs: dict, mem: dict, src_type, op_str
+    ):
         dst_reg = op_str(ea, 0).lower()
         if not dst_reg:
             return
@@ -393,8 +407,9 @@ class TaintMovement:
             if src_reg in regs:
                 source, conf = regs[src_reg]
                 regs[dst_reg] = (source, conf * 0.95)
-                self.a.taint_kinds_regs.setdefault(func_ea, {})[dst_reg] = \
+                self.a.taint_kinds_regs.setdefault(func_ea, {})[dst_reg] = (
                     self.a.taint_kinds_regs.get(func_ea, {}).get(src_reg, "ptr")
+                )
                 arg_regs = abi.arg_registers()
                 if src_reg in arg_regs and dst_reg in arg_regs:
                     self.a.interprocedural.record_arg_to_arg(func_ea, src_reg, dst_reg)
@@ -403,8 +418,9 @@ class TaintMovement:
             if mem_key and mem_key in mem:
                 source, conf = mem[mem_key]
                 regs[dst_reg] = (source, conf * 0.9)
-                self.a.taint_kinds_regs.setdefault(func_ea, {})[dst_reg] = \
+                self.a.taint_kinds_regs.setdefault(func_ea, {})[dst_reg] = (
                     self.a.taint_kinds_mem.get(func_ea, {}).get(mem_key, "ptr")
+                )
 
     def _mov_to_mem(self, ea: int, func_ea: int, regs: dict, mem: dict, op_str):
         src_reg = op_str(ea, 1).lower()
@@ -412,8 +428,9 @@ class TaintMovement:
             mem_key = self.a._mem_key(ea, 0, op_str)
             if mem_key:
                 mem[mem_key] = regs[src_reg]
-                self.a.taint_kinds_mem.setdefault(func_ea, {})[mem_key] = \
+                self.a.taint_kinds_mem.setdefault(func_ea, {})[mem_key] = (
                     self.a.taint_kinds_regs.get(func_ea, {}).get(src_reg, "ptr")
+                )
             arg_idx = self.a._arg_reg_index(src_reg)
             if arg_idx is not None and self.a._func_arg_is_ptr(func_ea, arg_idx):
                 self.a.interprocedural.record_arg_to_mem(func_ea, src_reg)
@@ -423,9 +440,11 @@ class StackTaint:
     def __init__(self, analyzer):
         self.a = analyzer
 
-    def track_stack(self, ea: int, func_ea: int, regs: dict, mem: dict, op_type, op_str):
+    def track_stack(
+        self, ea: int, func_ea: int, regs: dict, mem: dict, op_type, op_str
+    ):
         mnem = idc.print_insn_mnem(ea).lower()
-        if not hasattr(self.a, '_lifo_stacks'):
+        if not hasattr(self.a, "_lifo_stacks"):
             self.a._lifo_stacks = {}
         lifo = self.a._lifo_stacks.setdefault(func_ea, [])
         if mnem == "push":
@@ -433,7 +452,9 @@ class StackTaint:
         elif mnem == "pop":
             self._handle_pop(ea, func_ea, regs, mem, op_type, op_str, lifo)
 
-    def _handle_push(self, ea: int, func_ea: int, regs: dict, mem: dict, op_type, op_str, lifo):
+    def _handle_push(
+        self, ea: int, func_ea: int, regs: dict, mem: dict, op_type, op_str, lifo
+    ):
         opt = op_type(ea, 0)
         if opt == idc.o_reg:
             reg = op_str(ea, 0).lower()
@@ -442,12 +463,15 @@ class StackTaint:
                     sp = idc.get_sp_val(ea)
                     if sp != idc.BADADDR:
                         mem[sp] = regs[reg]
-                        self.a.taint_kinds_mem.setdefault(func_ea, {})[sp] = \
+                        self.a.taint_kinds_mem.setdefault(func_ea, {})[sp] = (
                             self.a.taint_kinds_regs.get(func_ea, {}).get(reg, "ptr")
+                        )
                 else:
                     lifo.append(regs[reg])
 
-    def _handle_pop(self, ea: int, func_ea: int, regs: dict, mem: dict, op_type, op_str, lifo):
+    def _handle_pop(
+        self, ea: int, func_ea: int, regs: dict, mem: dict, op_type, op_str, lifo
+    ):
         opt = op_type(ea, 0)
         if opt == idc.o_reg:
             reg_name = op_str(ea, 0).lower()
@@ -455,8 +479,9 @@ class StackTaint:
                 sp = idc.get_sp_val(ea)
                 if sp != idc.BADADDR and sp in mem:
                     regs[reg_name] = mem[sp]
-                    self.a.taint_kinds_regs.setdefault(func_ea, {})[reg_name] = \
+                    self.a.taint_kinds_regs.setdefault(func_ea, {})[reg_name] = (
                         self.a.taint_kinds_mem.get(func_ea, {}).get(sp, "ptr")
+                    )
             else:
                 if lifo:
                     regs[reg_name] = lifo.pop()
@@ -478,8 +503,9 @@ class ArithmeticTaint:
                 if src_reg in regs:
                     source, conf = regs[src_reg]
                     regs[dst_reg] = (source, conf * 0.9)
-                    self.a.taint_kinds_regs.setdefault(func_ea, {})[dst_reg] = \
+                    self.a.taint_kinds_regs.setdefault(func_ea, {})[dst_reg] = (
                         self.a.taint_kinds_regs.get(func_ea, {}).get(src_reg, "ptr")
+                    )
                     break
 
 
@@ -504,11 +530,15 @@ class RegisterForwardTracker:
                         if mnem in ["call", "jmp"] and i == 0:
                             target = self.a._resolve_register_value(ea, reg)
                             if target and self.a.is_valid_reference(target):
-                                self.a.add_xref(source, target, "tainted_indirect_call", 0.8)
+                                self.a.add_xref(
+                                    source, target, "tainted_indirect_call", 0.8
+                                )
                             if self.a.jump_table_taint:
                                 for tgt in self.a._resolve_switch_targets(ea, func):
                                     if self.a.is_valid_reference(tgt):
-                                        self.a.add_xref(source, tgt, "tainted_indirect_call", 0.7)
+                                        self.a.add_xref(
+                                            source, tgt, "tainted_indirect_call", 0.7
+                                        )
                         break
             ea = idc.next_head(ea)
             depth += 1
@@ -544,9 +574,13 @@ class ArgumentTaintChecker:
         arg_regs = self.a._get_call_arg_regs(call_ea)
         for idx, reg_name in enumerate(arg_regs):
             if reg_name in self.a.tainted_regs[func.start_ea]:
-                if self.a.cf_sensitive_sinks and not self.a._is_reg_tainted_near_call(call_ea, reg_name, func):
+                if self.a.cf_sensitive_sinks and not self.a._is_reg_tainted_near_call(
+                    call_ea, reg_name, func
+                ):
                     continue
-                kind = self.a.taint_kinds_regs.get(func.start_ea, {}).get(reg_name, "ptr")
+                kind = self.a.taint_kinds_regs.get(func.start_ea, {}).get(
+                    reg_name, "ptr"
+                )
                 source_ea, conf = self.a.tainted_regs[func.start_ea][reg_name]
                 exp_kind = self.a._expected_arg_kind(call_ea, idx)
                 if exp_kind and exp_kind != kind:
@@ -562,9 +596,11 @@ class StackArgScanner:
     def __init__(self, analyzer):
         self.a = analyzer
 
-    def scan(self, call_ea: int, func, reg_arg_count: int) -> Optional[Tuple[int, float]]:
+    def scan(
+        self, call_ea: int, func, reg_arg_count: int
+    ) -> Optional[Tuple[int, float]]:
         max_back = self.a.stack_arg_scan_max_back
-        win64 = (abi.calling_convention() == 'win64')
+        win64 = abi.calling_convention() == "win64"
         win_slots = set(self.a.stack_arg_win_slots or [0, 8, 16, 24])
         shadow_size = 0
         if reg_arg_count >= len(abi.arg_registers()):
@@ -575,37 +611,45 @@ class StackArgScanner:
             if ea == idc.BADADDR or ea < func.start_ea:
                 break
             mnem = idc.print_insn_mnem(ea).lower()
-            if mnem == 'sub':
+            if mnem == "sub":
                 d0 = idc.get_operand_type(ea, 0)
                 d1 = idc.get_operand_type(ea, 1)
                 if d0 == idc.o_reg and d1 == idc.o_imm:
-                    if idc.print_operand(ea, 0).lower() in ('rsp', 'esp'):
+                    if idc.print_operand(ea, 0).lower() in ("rsp", "esp"):
                         try:
                             shadow_size = int(idc.get_operand_value(ea, 1))
-                        except Exception:
+                        except (TypeError, ValueError, AttributeError, RuntimeError):
                             shadow_size = 0
-            if mnem == 'mov':
+            if mnem == "mov":
                 dst_type = idc.get_operand_type(ea, 0)
                 src_type = idc.get_operand_type(ea, 1)
                 if dst_type == idc.o_displ:
                     op = idc.print_operand(ea, 0).lower()
-                    if op.startswith('[rsp+') or op.startswith('[esp+'):
+                    if op.startswith("[rsp+") or op.startswith("[esp+"):
                         try:
-                            off_str = op.split('+', 1)[1].rstrip(']')
-                            off = int(off_str, 0) if off_str.startswith('0x') or off_str.isdigit() else -1
-                        except Exception:
+                            off_str = op.split("+", 1)[1].rstrip("]")
+                            off = (
+                                int(off_str, 0)
+                                if off_str.startswith("0x") or off_str.isdigit()
+                                else -1
+                            )
+                        except (TypeError, ValueError, AttributeError, RuntimeError):
                             off = -1
-                        accept_win64 = (off in win_slots) or (shadow_size and 0 <= off < shadow_size and off % 8 == 0)
+                        accept_win64 = (off in win_slots) or (
+                            shadow_size and 0 <= off < shadow_size and off % 8 == 0
+                        )
                         if off >= 0 and ((not win64) or accept_win64):
                             if src_type == idc.o_reg:
                                 src_reg = idc.print_operand(ea, 1).lower()
-                                if src_reg in self.a.tainted_regs.get(func.start_ea, {}):
+                                if src_reg in self.a.tainted_regs.get(
+                                    func.start_ea, {}
+                                ):
                                     return self.a.tainted_regs[func.start_ea][src_reg]
                             if src_type == idc.o_imm:
                                 val = idc.get_operand_value(ea, 1)
                                 if self.a.is_valid_reference(val):
                                     return (ea, 0.5)
-            if mnem == 'push':
+            if mnem == "push":
                 op_type = idc.get_operand_type(ea, 0)
                 if op_type == idc.o_reg:
                     src_reg = idc.print_operand(ea, 0).lower()
@@ -622,7 +666,9 @@ class ReturnValueTracker:
     def __init__(self, analyzer):
         self.a = analyzer
 
-    def get_return_value(self, ret_ea: int, func_ea: int) -> Optional[Tuple[int, float]]:
+    def get_return_value(
+        self, ret_ea: int, func_ea: int
+    ) -> Optional[Tuple[int, float]]:
         ea = idc.prev_head(ret_ea)
         depth = 0
         while ea >= func_ea and depth < self.a.return_value_back_depth:
@@ -643,7 +689,9 @@ class ReturnValueTracker:
             depth += 1
         return None
 
-    def check_return_usage(self, call_ea: int, called_func: int) -> Optional[Tuple[int, float]]:
+    def check_return_usage(
+        self, call_ea: int, called_func: int
+    ) -> Optional[Tuple[int, float]]:
         ea = idc.next_head(call_ea)
         depth = 0
         func = ida_funcs.get_func(call_ea)

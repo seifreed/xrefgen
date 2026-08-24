@@ -14,14 +14,14 @@ def parse_gp_offset(op_str: str) -> Optional[int]:
         if offset_str in ("", "0"):
             return 0
         return int(offset_str, 0)
-    except Exception:
+    except (TypeError, ValueError, AttributeError, RuntimeError):
         return None
 
 
 def operand_str(ea: int, idx: int) -> str:
     try:
         return idc.print_operand(ea, idx)
-    except Exception:
+    except (TypeError, ValueError, AttributeError, RuntimeError):
         return ""
 
 
@@ -32,7 +32,7 @@ def is_in_segment(ea: int, substr: str) -> bool:
             return False
         name = idc.get_segm_name(seg.start_ea).lower()
         return substr in name
-    except Exception:
+    except (TypeError, ValueError, AttributeError, RuntimeError):
         return False
 
 
@@ -42,7 +42,7 @@ def segment_name(ea: int) -> str:
         if not seg:
             return ""
         return idc.get_segm_name(seg.start_ea).lower()
-    except Exception:
+    except (TypeError, ValueError, AttributeError, RuntimeError):
         return ""
 
 

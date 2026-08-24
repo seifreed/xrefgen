@@ -6,7 +6,7 @@ def extract_mem_offset(op_str: str) -> Optional[int]:
     try:
         off_str = op_str.split("+", 1)[1].rstrip("]")
         return int(off_str, 0)
-    except Exception:
+    except (TypeError, ValueError, AttributeError, RuntimeError):
         return None
 
 

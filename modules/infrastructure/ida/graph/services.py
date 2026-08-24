@@ -49,7 +49,7 @@ class EntryPointFinder:
                 if ida_ida is not None and hasattr(ida_ida, 'inf_is_64bit'):
                     try:
                         is64 = ida_ida.inf_is_64bit()
-                    except Exception:
+                    except (TypeError, ValueError, AttributeError, RuntimeError):
                         is64 = False
                 ptr_size = 8 if is64 else 4
                 ea = seg_ea
@@ -149,7 +149,7 @@ class ComplexityAnalyzer:
             return []
         try:
             si = idaapi.get_switch_info_ex(jmp_ea)
-        except Exception:
+        except (TypeError, ValueError, AttributeError, RuntimeError):
             return []
         if not si:
             return []
@@ -157,7 +157,7 @@ class ComplexityAnalyzer:
             jtable = si.jumps
             size = si.get_jtable_size() if hasattr(si, "get_jtable_size") else 0
             esize = si.get_jtable_element_size() if hasattr(si, "get_jtable_element_size") else 4
-        except Exception:
+        except (TypeError, ValueError, AttributeError, RuntimeError):
             return []
         if not jtable or size <= 0:
             return []
@@ -166,7 +166,7 @@ class ComplexityAnalyzer:
             ea = jtable + i * esize
             try:
                 target = idc.get_qword(ea) if esize == 8 else idc.get_wide_dword(ea)
-            except Exception:
+            except (TypeError, ValueError, AttributeError, RuntimeError):
                 continue
             if target and self._valid_jump_target(func, target):
                 results.append((target, 0.75))

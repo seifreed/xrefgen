@@ -4,16 +4,16 @@ from typing import Dict, Set, Tuple
 
 
 class EvidenceCollector:
-    def __init__(self):
+    def __init__(self) -> None:
         self._counts: Dict[Tuple[int, int], int] = {}
         self._types: Dict[Tuple[int, int], Set[str]] = {}
 
-    def add(self, source: int, target: int, etype: str):
+    def add(self, source: int, target: int, etype: str) -> None:
         key = (source, target)
         self._counts[key] = self._counts.get(key, 0) + 1
         self._types.setdefault(key, set()).add(etype)
 
-    def add_count(self, source: int, target: int):
+    def add_count(self, source: int, target: int) -> None:
         key = (source, target)
         self._counts[key] = self._counts.get(key, 0) + 1
 

@@ -49,7 +49,7 @@ class EncryptedStringDetector:
                 self.analyzer.add_xref(source, string_addr, "decrypted_string", 0.8)
                 try:
                     self.analyzer.add_evidence(source, string_addr, "strings")
-                except Exception:
+                except (TypeError, ValueError, AttributeError, RuntimeError):
                     pass
                 results.append((source, string_addr, "decrypted_string", 0.8))
                 self.encrypted_strings[string_addr] = norm
@@ -181,7 +181,7 @@ class EncryptedStringDetector:
                 return True
             if '\\' in text or '/' in text or '.' in text:
                 return True
-        except Exception:
+        except (TypeError, ValueError, AttributeError, RuntimeError):
             pass
         return printable_ratio(data) == 1.0
 
@@ -225,12 +225,12 @@ class EncryptedStringDetector:
         if looks_like_utf16le(data):
             try:
                 return data.decode("utf-16le", errors="ignore")
-            except Exception:
+            except (TypeError, ValueError, AttributeError, RuntimeError):
                 pass
         if looks_like_utf16be(data):
             try:
                 return data.decode("utf-16be", errors="ignore")
-            except Exception:
+            except (TypeError, ValueError, AttributeError, RuntimeError):
                 pass
         return data.decode("utf-8", errors="ignore")
 
@@ -257,7 +257,7 @@ class EncryptedStringDetector:
                 self.analyzer.add_xref(head, target, "stack_string_arg", 0.6)
                 try:
                     self.analyzer.add_evidence(head, target, "strings")
-                except Exception:
+                except (TypeError, ValueError, AttributeError, RuntimeError):
                     pass
                 results.append((head, target, "stack_string_arg", 0.6))
         return results
@@ -268,7 +268,7 @@ class EncryptedStringDetector:
         try:
             import ida_ida
             ret_reg = "rax" if ida_ida.inf_is_64bit() else "eax"
-        except Exception:
+        except (TypeError, ValueError, AttributeError, RuntimeError):
             pass
         alloc_names = ["malloc", "calloc", "HeapAlloc", "operator new"]
         copy_names = ["memcpy", "strcpy", "strncpy", "memmove"]
@@ -280,7 +280,7 @@ class EncryptedStringDetector:
                 try:
                     target = idc.get_operand_value(head, 0)
                     name = idc.get_func_name(target).lower()
-                except Exception:
+                except (TypeError, ValueError, AttributeError, RuntimeError):
                     name = ""
                 if any(a in name for a in alloc_names):
                     last_alloc_ea = head
@@ -294,7 +294,7 @@ class EncryptedStringDetector:
                             self.analyzer.add_xref(head, target, "heap_string_arg", 0.6)
                             try:
                                 self.analyzer.add_evidence(head, target, "strings")
-                            except Exception:
+                            except (TypeError, ValueError, AttributeError, RuntimeError):
                                 pass
                             results.append((head, target, "heap_string_arg", 0.6))
                     last_alloc_ea = None

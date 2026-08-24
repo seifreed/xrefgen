@@ -24,14 +24,14 @@ def extract_bracket_base_offset(op_str: str):
         base, off = inner.split("+", 1)
         try:
             return base, int(off, 0)
-        except Exception:
+        except (TypeError, ValueError, AttributeError, RuntimeError):
             return base, None
     if "," in inner:
         parts = inner.split(",", 1)
         base = parts[0]
         try:
             return base, int(parts[1], 0)
-        except Exception:
+        except (TypeError, ValueError, AttributeError, RuntimeError):
             return base, None
     return inner, 0
 
@@ -62,12 +62,12 @@ def scan_back_for_reg_source(call_ea: int, reg: str, max_back: int = 6, mnems=("
         try:
             dst_type = idc.get_operand_type(ea, 0)
             src_type = idc.get_operand_type(ea, 1)
-        except Exception:
+        except (TypeError, ValueError, AttributeError, RuntimeError):
             continue
         if dst_type == idc.o_reg and idc.print_operand(ea, 0).lower() == reg:
             try:
                 src_val = idc.get_operand_value(ea, 1)
-            except Exception:
+            except (TypeError, ValueError, AttributeError, RuntimeError):
                 src_val = None
             return ea, src_type, src_val
     return None

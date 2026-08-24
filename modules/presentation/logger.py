@@ -24,7 +24,7 @@ def _emit(level: str, msg: str):
         try:
             with open(_log_file, "a", encoding="utf-8", errors="ignore") as f:
                 f.write(f"{line}\n")
-        except Exception:
+        except (IOError, OSError, FileNotFoundError, PermissionError):
             pass
 
 

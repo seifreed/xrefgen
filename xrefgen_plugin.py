@@ -17,9 +17,10 @@ class XrefGenPlugin(idaapi.plugin_t):
     def run(self, arg):
         try:
             import xrefgen
+
             # Default to interactive mode when launched as plugin
             xrefgen.XrefGen().interactive_mode()
-        except Exception as exc:
+        except (ImportError, AttributeError, TypeError, RuntimeError) as exc:
             ida_kernwin.warning("XrefGen failed: %s" % exc)
 
     def term(self):

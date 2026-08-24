@@ -19,5 +19,5 @@ class GraphNoisePolicy:
                 self.a.min_indirect_confidence = min(0.8, self.a.min_indirect_confidence + 0.05)
             else:
                 self.a._noise_factor = 1.0
-        except Exception:
+        except (TypeError, ValueError, AttributeError, RuntimeError):
             self.a._noise_factor = 1.0
