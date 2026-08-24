@@ -48,19 +48,19 @@ import time
 
 try:
     import ida_typeinf
-except (TypeError, ValueError, AttributeError, RuntimeError):
+except (ImportError, TypeError, ValueError, AttributeError, RuntimeError):
     ida_typeinf = None
 try:
     import ida_hexrays
-except (TypeError, ValueError, AttributeError, RuntimeError):
+except (ImportError, TypeError, ValueError, AttributeError, RuntimeError):
     ida_hexrays = None
 try:
     import ida_frame
-except (TypeError, ValueError, AttributeError, RuntimeError):
+except (ImportError, TypeError, ValueError, AttributeError, RuntimeError):
     ida_frame = None
 try:
     import ida_struct
-except (TypeError, ValueError, AttributeError, RuntimeError):
+except (ImportError, TypeError, ValueError, AttributeError, RuntimeError):
     ida_struct = None
 try:
     import ida_ida
