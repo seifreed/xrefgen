@@ -30,11 +30,7 @@ class XrefGenPresenter:
             "Exit",
         ]
         try:
-            return ida_kernwin.choose_from_list(
-                choices,
-                "XrefGen - Select Action",
-                0,
-            )
+            return self._choose_index(choices, "XrefGen - Select Action")
         except (TypeError, ValueError, AttributeError, RuntimeError):
             return 0
 
@@ -44,10 +40,9 @@ class XrefGenPresenter:
             selected_names = []
             remaining = list(module_names)
             while remaining:
-                idx = ida_kernwin.choose_from_list(
+                idx = self._choose_index(
                     [f"[ ] {n}" for n in remaining] + ["<Run>"],
                     "Select modules to add (choose <Run> to proceed)",
-                    0,
                 )
                 if idx is None or idx < 0 or idx >= len(remaining):
                     break
@@ -55,6 +50,26 @@ class XrefGenPresenter:
             return selected_names
         except (TypeError, ValueError, AttributeError, RuntimeError):
             return []
+
+    @staticmethod
+    def _choose_index(items, title):
+        chooser = getattr(ida_kernwin, "Choose", None)
+        if chooser is not None:
+            class ItemChooser(chooser):
+                def __init__(self):
+                    super().__init__(title, [["Option", 40]])
+
+                def OnGetSize(self):
+                    return len(items)
+
+                def OnGetLine(self, n):
+                    return [items[n]]
+
+            return ItemChooser().choose()
+        legacy = getattr(ida_kernwin, "choose_from_list", None)
+        if legacy is None:
+            return -1
+        return legacy(items, title, 0)
 
     def configure_dialog(self):
         info("Configuration dialog not yet implemented")
