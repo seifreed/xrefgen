@@ -1,0 +1,16 @@
+{
+  "expected_xrefs": [
+    {
+      "source": "0x1000",
+      "target": "0x2000",
+      "kind": "indirect_call"
+    }
+  ],
+  "forbidden_xrefs": [
+    {
+      "source": "0x3000",
+      "target": "0x3000",
+      "kind": "anti_analysis"
+    }
+  ]
+}

@@ -135,6 +135,13 @@ Important output keys:
 - `txt_format: "xrefer"` → strict `0xSRC,0xDST`
 - Set `txt_format: "extended"` if you want extra columns
 
+## Validation
+
+Run `scripts/ida_real_tests.py` inside IDA for an integration smoke test. To
+measure a corpus export, use `python scripts/compare_ground_truth.py actual.json expected.json`.
+The repository includes `tests/fixtures/ground_truth.example.json` as the
+expected-file format; it is not a claim about a real binary.
+
 ## Thanks
 
 Huge thanks to **Mandiant** for building **XRefer** and open-sourcing it. This project is specifically designed to augment XRefer workflows and would not exist without their excellent work.
