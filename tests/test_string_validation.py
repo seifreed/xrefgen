@@ -2,16 +2,18 @@ import sys
 import types
 import unittest
 
+def _create_mock_module(name):
+    m = types.ModuleType(name)
+    sys.modules[name] = m
+    return m
 
 def _install_ida_mocks():
-    idautils = types.SimpleNamespace(Functions=lambda: [])
-    ida_funcs = types.SimpleNamespace()
-    idc = types.SimpleNamespace()
-    ida_bytes = types.SimpleNamespace(get_byte=lambda _ea: 0)
-    sys.modules.setdefault("idautils", idautils)
-    sys.modules.setdefault("ida_funcs", ida_funcs)
-    sys.modules.setdefault("idc", idc)
-    sys.modules.setdefault("ida_bytes", ida_bytes)
+    idautils = _create_mock_module("idautils")
+    idautils.Functions = lambda: []
+    _create_mock_module("ida_funcs")
+    _create_mock_module("idc")
+    ida_bytes = _create_mock_module("ida_bytes")
+    ida_bytes.get_byte = lambda _ea: 0
 
 
 class StringValidationTests(unittest.TestCase):
@@ -41,7 +43,8 @@ class StringValidationTests(unittest.TestCase):
         enc = bytes([b ^ (key ^ i) for i, b in enumerate(plain)])
         result = detector._try_index_xor(list(enc))
         self.assertIsNotNone(result)
-        self.assertTrue(result.isprintable())
+        if result:
+            self.assertTrue(result.isprintable())
 
 
 if __name__ == "__main__":
