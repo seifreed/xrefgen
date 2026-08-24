@@ -27,11 +27,22 @@ CONTROL_FLOW_TYPES = frozenset(
         "arm_ldr_pc_call",
         "arm_vtable_call",
         "arm64_brx",
-        "arm64_adrp_add",
         "return_value_call",
         "tainted_indirect_call",
     }
 )
+
+CONTROL_FLOW_MNEMONICS = frozenset(
+    {
+        "call", "bl", "blx", "jal", "jalr", "jmp", "b", "br", "blr",
+        "bx", "jr", "cbz", "cbnz", "tbz", "tbnz", "tbb", "tbh",
+        "call_indirect", "br_table",
+    }
+)
+
+
+def is_control_flow_mnemonic(mnemonic: str) -> bool:
+    return str(mnemonic or "").lower() in CONTROL_FLOW_MNEMONICS
 
 
 @dataclass(frozen=True)

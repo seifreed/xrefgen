@@ -20,6 +20,7 @@ class WrapperDetector:
             if (func.end_ea - func.start_ea) > self.a.skip_trivial_size * 2:
                 continue
             call_target = None
+            call_ea = None
             call_count = 0
             for head in self.a._iter_heads(func):
                 mnem = idc.print_insn_mnem(head).lower()
@@ -27,14 +28,15 @@ class WrapperDetector:
                     call_count += 1
                     if idc.get_operand_type(head, 0) == idc.o_near:
                         call_target = idc.get_operand_value(head, 0)
-            if call_count == 1 and call_target and self.a.is_valid_reference(call_target):
+                        call_ea = head
+            if call_count == 1 and call_ea and call_target and self.a.is_valid_reference(call_target):
                 conf = self.a.confidence("wrapper_call")
-                self.a.add_xref(head, call_target, "wrapper_call", conf)
+                self.a.add_xref(call_ea, call_target, "wrapper_call", conf)
                 try:
-                    self.a.add_evidence(head, call_target, "wrapper")
+                    self.a.add_evidence(call_ea, call_target, "wrapper")
                 except (TypeError, ValueError, AttributeError, RuntimeError):
                     pass
-                results.append((head, call_target, "wrapper_call", conf))
+                results.append((call_ea, call_target, "wrapper_call", conf))
         return results
 
 

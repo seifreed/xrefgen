@@ -128,6 +128,7 @@ class GraphAnalyzer(IncrementalAnalyzer):
     
     def analyze(self) -> List[Tuple[int, int, str, float]]:
         """Perform graph-based analysis"""
+        self.reset_analysis_state()
         results = []
         self._call_edge_results = []
         
@@ -158,6 +159,17 @@ class GraphAnalyzer(IncrementalAnalyzer):
         results.extend(self._seh_resolver.analyze())
         
         return results
+
+    def reset_analysis_state(self):
+        """Drop derived graph state before rebuilding an IDB-wide analysis."""
+        self.call_graph.clear()
+        self.reverse_call_graph.clear()
+        self.function_clusters.clear()
+        self.call_chains.clear()
+        self.function_complexity.clear()
+        self._direct_calls.clear()
+        self._indirect_cache.clear()
+        self._edges_by_func.clear()
 
     def analyze_function(self, func) -> List[Tuple[int, int, str, float]]:
         """Incremental analysis for a single function: only emit its call edges."""

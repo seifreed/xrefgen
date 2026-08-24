@@ -7,7 +7,7 @@ import ida_nalt
 import idc
 from modules.application.config import Config
 from modules.application.registry import build_modules
-from modules.domain.results import ResultStore
+from modules.domain.results import ResultStore, is_control_flow_mnemonic
 from modules.infrastructure.ida.performance.optimizer import PerformanceOptimizer
 
 cfg = Config().config
@@ -34,8 +34,7 @@ for item in all_results:
         raise ValueError(f"Invalid xref structure: expected 4-tuple, got {item}")
 
 store = ResultStore(
-    source_is_control_flow=lambda ea: idc.print_insn_mnem(ea).lower()
-    in {"call", "bl", "blx", "jal", "jalr", "jmp", "br", "blr"},
+    source_is_control_flow=lambda ea: is_control_flow_mnemonic(idc.print_insn_mnem(ea)),
     target_is_executable=lambda ea: any(
         getattr(module, "is_valid_reference", lambda _ea: False)(ea)
         for module in modules

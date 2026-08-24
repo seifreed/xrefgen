@@ -36,7 +36,7 @@ from modules.infrastructure.ida.performance.optimizer import PerformanceOptimize
 from modules.presentation.cli import XrefGenPresenter
 from modules.presentation import logger
 from modules.presentation.logger import info as _info, warn as _warn
-from modules.domain.results import ResultStore
+from modules.domain.results import ResultStore, is_control_flow_mnemonic
 from modules import __version__
 
 _DEBUG_LOG_PATH = None
@@ -265,10 +265,7 @@ class XrefGen:
 
     def _is_control_flow_source(self, ea: int) -> bool:
         try:
-            return idc.print_insn_mnem(ea).lower() in {
-                "call", "bl", "blx", "jal", "jalr", "jmp", "b", "br", "blr",
-                "cbz", "cbnz", "tbz", "tbnz",
-            }
+            return is_control_flow_mnemonic(idc.print_insn_mnem(ea))
         except (TypeError, ValueError, AttributeError, RuntimeError):
             return False
 
@@ -276,7 +273,8 @@ class XrefGen:
         for module in self.manager.modules:
             validator = getattr(module, "is_valid_reference", None)
             if callable(validator):
-                return bool(validator(ea))
+                if validator(ea):
+                    return True
         return False
 
     def _xref_exists(self, source: int, target: int) -> bool:

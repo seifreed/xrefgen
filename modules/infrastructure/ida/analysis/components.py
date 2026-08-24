@@ -514,9 +514,10 @@ class RegisterForwardTracker:
         self.a = analyzer
 
     def track(self, start_ea: int, reg: str, source: int):
+        results = []
         func = ida_funcs.get_func(start_ea)
         if not func:
-            return
+            return results
         ea = idc.next_head(start_ea)
         depth = 0
         max_depth = self.a._max_depth_override or self.a.max_taint_depth
@@ -531,17 +532,20 @@ class RegisterForwardTracker:
                             target = self.a._resolve_register_value(ea, reg)
                             if target and self.a.is_valid_reference(target):
                                 self.a.add_xref(
-                                    source, target, "tainted_indirect_call", 0.8
+                                    ea, target, "tainted_indirect_call", 0.8
                                 )
+                                results.append((ea, target, "tainted_indirect_call", 0.8))
                             if self.a.jump_table_taint:
                                 for tgt in self.a._resolve_switch_targets(ea, func):
                                     if self.a.is_valid_reference(tgt):
                                         self.a.add_xref(
-                                            source, tgt, "tainted_indirect_call", 0.7
+                                            ea, tgt, "tainted_indirect_call", 0.7
                                         )
+                                        results.append((ea, tgt, "tainted_indirect_call", 0.7))
                         break
             ea = idc.next_head(ea)
             depth += 1
+        return results
 
 
 class RegisterResolver:
@@ -691,7 +695,7 @@ class ReturnValueTracker:
 
     def check_return_usage(
         self, call_ea: int, called_func: int
-    ) -> Optional[Tuple[int, float]]:
+    ) -> Optional[Tuple[int, int, float]]:
         ea = idc.next_head(call_ea)
         depth = 0
         func = ida_funcs.get_func(call_ea)
@@ -706,7 +710,7 @@ class ReturnValueTracker:
                     op_reg = idc.print_operand(ea, 0).lower()
                     ret_reg = abi.return_reg()
                     if op_reg == ret_reg:
-                        return (ret_value, ret_conf * 0.85)
+                        return (ea, ret_value, ret_conf * 0.85)
             ea = idc.next_head(ea)
             depth += 1
         return None

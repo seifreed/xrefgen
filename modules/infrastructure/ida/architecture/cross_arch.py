@@ -24,7 +24,7 @@ class CrossArchAnalyzer(IncrementalAnalyzer):
     def __init__(self, config: Dict = None):
         super().__init__(config)
         self.supported_archs = config.get('architectures', 
-            ['x86', 'x64', 'arm', 'arm64', 'mips', 'wasm'])
+            ['x86', 'x64', 'arm', 'arm64', 'mips'])
         
         # Detect current architecture
         self.arch = self._detect_architecture()
@@ -134,8 +134,8 @@ class CrossArchAnalyzer(IncrementalAnalyzer):
                         if next_ea != idc.BADADDR:
                             next_mnem = idc.print_insn_mnem(next_ea).upper()
                             if next_mnem in ["BLX", "BX"]:
-                                self.add_xref(head, target, "arm_ldr_pc_call", 0.8)
-                                refs.append((head, target, "arm_ldr_pc_call", 0.8))
+                                self.add_xref(next_ea, target, "arm_ldr_pc_call", 0.8)
+                                refs.append((next_ea, target, "arm_ldr_pc_call", 0.8))
         
         return refs
     
@@ -306,18 +306,6 @@ class CrossArchAnalyzer(IncrementalAnalyzer):
                         xref_type = "arm64_blr" if mnem == "blr" else "arm64_br"
                         self.add_xref(head, target, xref_type, 0.85)
                         results.append((head, target, xref_type, 0.85))
-            elif mnem == "adrp":
-                page_addr = idc.get_operand_value(head, 1)
-                next_ea = idc.next_head(head)
-                if next_ea != idc.BADADDR:
-                    next_mnem = idc.print_insn_mnem(next_ea).lower()
-                    if next_mnem == "add":
-                        if idc.get_operand_type(next_ea, 2) != idc.o_void:
-                            offset = idc.get_operand_value(next_ea, 2)
-                            full_addr = page_addr + offset
-                            if self.is_valid_reference(full_addr):
-                                self.add_xref(head, full_addr, "arm64_adrp_add", 0.9)
-                                results.append((head, full_addr, "arm64_adrp_add", 0.9))
         
         return results
     
@@ -361,7 +349,7 @@ class CrossArchAnalyzer(IncrementalAnalyzer):
                         self.add_xref(head, target, "mips_jalr", 0.85)
                         results.append((head, target, "mips_jalr", 0.85))
                     delay_slot = idc.next_head(head)
-                    if delay_slot != idc.BADADDR:
+                    if target and self.is_valid_reference(target) and delay_slot != idc.BADADDR:
                         self.add_xref(delay_slot, target, "mips_delay_slot", 0.7)
             elif mnem == "jr":
                 op_type = idc.get_operand_type(head, 0)
@@ -501,11 +489,11 @@ class CrossArchAnalyzer(IncrementalAnalyzer):
                     if target:
                         self.add_xref(head, target, "x86_thiscall", 0.8)
                         results.append((head, target, "x86_thiscall", 0.8))
-            elif mnem == "call" and self._is_x86_fastcall(head):
-                target = idc.get_operand_value(head, 0)
-                if self.is_valid_reference(target):
-                    self.add_xref(head, target, "x86_fastcall", 0.85)
-                    results.append((head, target, "x86_fastcall", 0.85))
+                elif self._is_x86_fastcall(head):
+                    target = idc.get_operand_value(head, 0)
+                    if self.is_valid_reference(target):
+                        self.add_xref(head, target, "x86_fastcall", 0.85)
+                        results.append((head, target, "x86_fastcall", 0.85))
         
         return results
     
@@ -552,7 +540,7 @@ class CrossArchAnalyzer(IncrementalAnalyzer):
                     if target:
                         self.add_xref(head, target, "x64_rip_relative", 0.9)
                         results.append((head, target, "x64_rip_relative", 0.9))
-            elif mnem in ["call", "jmp"]:
+            if mnem in ["call", "jmp"]:
                 if self._uses_x64_calling_convention(head):
                     op_type = idc.get_operand_type(head, 0)
                     if op_type == idc.o_reg:

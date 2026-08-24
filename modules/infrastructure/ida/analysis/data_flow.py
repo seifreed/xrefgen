@@ -91,6 +91,9 @@ class DataFlowAnalyzer(IncrementalAnalyzer):
 
     def __init__(self, config: Dict = None):
         super().__init__(config)
+        # Taint state is interprocedural and cannot be reconstructed from tuple caches.
+        self.supports_incremental = False
+        self.analysis_scope = "global"
         def configured_names(key, default):
             return {normalize_name(value) for value in config.get(key, default)}
 
@@ -252,6 +255,7 @@ class DataFlowAnalyzer(IncrementalAnalyzer):
         # Guard stack taint tracking accordingly
         self._has_get_sp_val = hasattr(idc, "get_sp_val")
         self._ip_cache = set()
+        self._pending_control_flow_results = []
 
     def _iter_functions(self):
         """Yield (func_ea, func) for all valid functions."""
@@ -288,6 +292,7 @@ class DataFlowAnalyzer(IncrementalAnalyzer):
     def analyze_function(self, func) -> List[Tuple[int, int, str, float]]:
         """Incremental per-function analysis."""
         results: List[Tuple[int, int, str, float]] = []
+        self._pending_control_flow_results = []
         func_ea = func.start_ea
         deadline = None
         if self.function_timeout_ms and self.function_timeout_ms > 0:
@@ -349,6 +354,7 @@ class DataFlowAnalyzer(IncrementalAnalyzer):
         try:
             # Local taint propagation inside function
             self._analyze_function_taint(func_ea, deadline)
+            results.extend(self._pending_control_flow_results)
             # Source/sink logic for this function + its callers
             results.extend(self._analyze_taint_for_function(func_ea))
         except (TypeError, ValueError, AttributeError, RuntimeError) as e:
@@ -386,7 +392,9 @@ class DataFlowAnalyzer(IncrementalAnalyzer):
             if source in func_name:
                 for xref in idautils.XrefsTo(func_ea):
                     if xref.type in [ida_xref.fl_CN, ida_xref.fl_CF]:
-                        self._propagate_taint_from_call(xref.frm, func_ea)
+                        results.extend(
+                            self._propagate_taint_from_call(xref.frm, func_ea) or []
+                        )
         for sink in self.taint_sinks:
             if sink in func_name:
                 for xref in idautils.XrefsTo(func_ea):
@@ -442,7 +450,7 @@ class DataFlowAnalyzer(IncrementalAnalyzer):
         self.tainted_regs[func.start_ea][ret_reg] = (call_ea, 0.9)
 
         # Track forward from call
-        self._track_register_forward(call_ea, ret_reg, source_func)
+        return self._track_register_forward(call_ea, ret_reg, source_func)
 
     def _analyze_function_taint(self, func_ea: int, deadline: Optional[float] = None):
         """Analyze taint propagation within a function using basic blocks."""
@@ -579,7 +587,7 @@ class DataFlowAnalyzer(IncrementalAnalyzer):
 
     def _track_register_forward(self, start_ea: int, reg: str, source: int):
         """Track a tainted register forward through the code."""
-        self.reg_forward.track(start_ea, reg, source)
+        return self.reg_forward.track(start_ea, reg, source)
 
     def _check_tainted_arguments(
         self, call_ea: int
@@ -715,9 +723,9 @@ class DataFlowAnalyzer(IncrementalAnalyzer):
             if xref.type in [ida_xref.fl_CN, ida_xref.fl_CF]:
                 ret_usage = self._check_return_value_usage(xref.frm, func_ea)
                 if ret_usage:
-                    target, confidence = ret_usage
-                    self.add_xref(xref.frm, target, "return_value_call", confidence)
-                    results.append((xref.frm, target, "return_value_call", confidence))
+                    source, target, confidence = ret_usage
+                    self.add_xref(source, target, "return_value_call", confidence)
+                    results.append((source, target, "return_value_call", confidence))
         return results
 
     def _emit_pointer_chain_results(
@@ -1036,12 +1044,18 @@ class DataFlowAnalyzer(IncrementalAnalyzer):
                 return
 
     def _handle_jump_table_taint(self, jmp_ea: int, func, regs: dict):
+        results = []
         for _reg, (src, conf) in regs.items():
             for tgt in self._resolve_switch_targets(jmp_ea, func):
                 if self.is_valid_reference(tgt):
                     self.add_xref(
-                        src, tgt, "tainted_indirect_call", max(0.5, conf * 0.85)
+                        jmp_ea, tgt, "tainted_indirect_call", max(0.5, conf * 0.85)
                     )
+                    results.append(
+                        (jmp_ea, tgt, "tainted_indirect_call", max(0.5, conf * 0.85))
+                    )
+        self._pending_control_flow_results.extend(results)
+        return results
 
     def _resolve_switch_targets(self, jmp_ea: int, func) -> List[int]:
         if not hasattr(idaapi, "get_switch_info_ex"):
