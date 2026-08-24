@@ -1,4 +1,4 @@
-from modules.domain.results import Finding, ResultStore
+from modules.domain.results import Finding, Relationship, ResultStore, XrefCandidate
 
 
 def test_result_store_exports_only_valid_control_flow_and_deduplicates():
@@ -37,3 +37,21 @@ def test_result_store_accepts_explicit_findings():
     store = ResultStore()
     assert not store.add_result(Finding(1, 2, "arm64_adrp_add", 0.9))
     assert store.findings[0].kind == "arm64_adrp_add"
+
+
+def test_explicit_result_roles_do_not_depend_on_kind_strings():
+    store = ResultStore(
+        source_is_control_flow=lambda _ea: True,
+        target_is_executable=lambda _ea: True,
+    )
+    assert store.add_result(XrefCandidate(1, 2, "new_indirect_flow", 0.8))
+    assert store.xrefs() == [(1, 2, "new_indirect_flow", 0.8)]
+
+    finding = Finding(3, 4, "same_kind", 0.5)
+    relationship = Relationship(5, 6, "same_kind", 0.5)
+    assert not store.add_result(finding)
+    assert not store.add_result(finding)
+    assert not store.add_result(relationship)
+    assert not store.add_result(relationship)
+    assert len(store.findings) == 1
+    assert len(store.relationships) == 1

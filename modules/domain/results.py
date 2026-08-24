@@ -173,7 +173,7 @@ class ResultStore:
     ) -> bool:
         """Add an explicitly classified result without inferring its role from kind."""
         if isinstance(result, XrefCandidate):
-            return self.add(
+            return self._add_candidate(
                 result.source,
                 result.target,
                 result.kind,
@@ -182,31 +182,71 @@ class ResultStore:
                 tuple(evidence) + tuple(result.evidence),
             )
         if isinstance(result, Finding):
-            self.findings.append(
-                Finding(
-                    result.source,
-                    result.target,
-                    result.kind,
-                    result.confidence,
-                    module or result.module,
-                    tuple(sorted(set(tuple(evidence) + tuple(result.evidence)))),
-                )
+            record = Finding(
+                result.source,
+                result.target,
+                result.kind,
+                result.confidence,
+                module or result.module,
+                tuple(sorted(set(tuple(evidence) + tuple(result.evidence)))),
             )
+            key = (record.source, record.target, record.kind)
+            if key not in self._finding_keys:
+                self._finding_keys.add(key)
+                self.findings.append(record)
             return False
         if isinstance(result, Relationship):
-            self.relationships.append(
-                Relationship(
-                    result.source,
-                    result.target,
-                    result.kind,
-                    result.confidence,
-                    module or result.module,
-                    tuple(sorted(set(tuple(evidence) + tuple(result.evidence)))),
-                )
+            record = Relationship(
+                result.source,
+                result.target,
+                result.kind,
+                result.confidence,
+                module or result.module,
+                tuple(sorted(set(tuple(evidence) + tuple(result.evidence)))),
             )
+            key = (record.source, record.target, record.kind)
+            if key not in self._relationship_keys:
+                self._relationship_keys.add(key)
+                self.relationships.append(record)
             return False
         self._reject(result, None, "unknown", "invalid_result")
         return False
+
+    def _add_candidate(
+        self,
+        source: int,
+        target: int,
+        kind: str,
+        confidence: float,
+        module: str = "",
+        evidence: Iterable[str] = (),
+    ) -> bool:
+        """Store an explicitly typed candidate after applying common validation."""
+        try:
+            source = int(source)
+            target = int(target)
+            confidence = max(0.0, min(1.0, float(confidence)))
+            kind = str(kind)
+        except (TypeError, ValueError):
+            self._reject(source, target, kind, "invalid_result")
+            return False
+
+        reason = self._xref_rejection_reason(source, target)
+        if reason:
+            self._reject(source, target, kind, reason)
+            return False
+        evidence = tuple(sorted(set(evidence or ())))
+        key = (source, target)
+        stored = self._xrefs.get(key)
+        if stored is None:
+            self._xrefs[key] = _StoredXref(
+                source, target, kind, confidence, {kind}, set(evidence)
+            )
+        else:
+            stored.confidence = max(stored.confidence, confidence)
+            stored.kinds.add(kind)
+            stored.evidence.update(evidence)
+        return True
 
     def xrefs(self, min_confidence: float = 0.0) -> List[Tuple[int, int, str, float]]:
         return [
