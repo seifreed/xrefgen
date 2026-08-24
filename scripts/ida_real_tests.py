@@ -3,11 +3,17 @@ Usage: In the IDA console, execute this file from the repository root.
 """
 import json
 import os
+import copy
+import idautils
 import ida_nalt
 import idc
 from modules.application.config import Config
 from modules.application.registry import build_modules
-from modules.domain.results import ResultStore, is_control_flow_mnemonic
+from modules.domain.results import (
+    RESULT_TYPES,
+    ResultStore,
+    is_control_flow_mnemonic,
+)
 from modules.infrastructure.ida.performance.optimizer import PerformanceOptimizer
 
 cfg = Config().config
@@ -30,7 +36,7 @@ for res in results_by_module.values():
     all_results.extend(res)
 
 for item in all_results:
-    if not (isinstance(item, tuple) and len(item) == 4):
+    if not (isinstance(item, RESULT_TYPES) or (isinstance(item, tuple) and len(item) == 4)):
         raise ValueError(f"Invalid xref structure: expected 4-tuple, got {item}")
 
 store = ResultStore(
@@ -45,7 +51,10 @@ store = ResultStore(
     ),
 )
 for item in all_results:
-    store.add(*item)
+    if isinstance(item, RESULT_TYPES):
+        store.add_result(item)
+    else:
+        store.add(*item)
 
 expected_path = os.environ.get("XREFGEN_EXPECTED_JSON")
 if expected_path:
@@ -66,3 +75,23 @@ if expected_path:
         raise ValueError(f"Forbidden xrefs emitted: {sorted(actual.intersection(forbidden))}")
 
 print("[IDA Real Tests] OK: modules executed, results validated")
+
+if os.environ.get("XREFGEN_ASSERT_EQUIVALENCE"):
+    equivalence_cfg = copy.deepcopy(cfg)
+    performance_cfg = equivalence_cfg.setdefault("modules", {}).setdefault("performance", {})
+    performance_cfg["use_cache"] = False
+    performance_cfg["incremental"] = True
+
+    full_optimizer = PerformanceOptimizer(performance_cfg)
+    full_results = full_optimizer.analyze_sequential(
+        build_modules(equivalence_cfg), modified_only=False
+    )
+    incremental_optimizer = PerformanceOptimizer(performance_cfg)
+    incremental_results = incremental_optimizer.analyze_sequential(
+        build_modules(equivalence_cfg),
+        modified_only=True,
+        modified_functions=set(idautils.Functions()),
+    )
+    if full_results != incremental_results:
+        raise ValueError("full and incremental analysis results differ")
+    print("[IDA Real Tests] OK: full/incremental results are equivalent")
