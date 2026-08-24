@@ -366,7 +366,7 @@ class PerformanceOptimizer:
             hasattr(analyzer, "analyze_function")
             and getattr(analyzer, "analysis_scope", "global") == "function"
         ):
-            for func_ea in target_functions:
+            for func_ea in sorted(target_functions):
                 if self.skip_slow_functions and func_ea in self._slow_functions:
                     continue
 
@@ -482,7 +482,7 @@ class IncrementalAnalyzer(IDAXrefAnalyzer):
 
     def analyze(self) -> List[Tuple[int, int, str, float]]:
         results = []
-        for func_ea in idautils.Functions():
+        for func_ea in sorted(idautils.Functions()):
             if self.modified_functions and func_ea not in self.modified_functions:
                 continue
             get_func = getattr(ida_funcs, "get_func", None)

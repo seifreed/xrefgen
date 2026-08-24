@@ -114,7 +114,7 @@ class GraphAnalyzer(IncrementalAnalyzer):
 
     def _iter_functions(self):
         """Yield (func_ea, func) for all valid functions."""
-        for func_ea in idautils.Functions():
+        for func_ea in sorted(idautils.Functions()):
             func = ida_funcs.get_func(func_ea)
             if func:
                 yield func_ea, func
@@ -208,7 +208,7 @@ class GraphAnalyzer(IncrementalAnalyzer):
         for func_ea, called in self.call_graph.items():
             degree = len(called) + len(self.reverse_call_graph.get(func_ea, set()))
             if degree >= self.hub_threshold:
-                for target in called:
+                for target in sorted(called):
                     conf = self.confidence("hub_call")
                     self.add_xref(func_ea, target, "hub_call", conf)
                     results.append((func_ea, target, "hub_call", conf))
@@ -219,7 +219,7 @@ class GraphAnalyzer(IncrementalAnalyzer):
         if self.cycle_max_len < 2:
             return results
         for func_ea, called in self.call_graph.items():
-            for target in called:
+            for target in sorted(called):
                 if func_ea in self.call_graph.get(target, set()):
                     conf = self.confidence("call_cycle")
                     self.add_xref(func_ea, target, "call_cycle", conf)
@@ -409,7 +409,7 @@ class GraphAnalyzer(IncrementalAnalyzer):
             pass
         # Fall back to function names
         try:
-            for func_ea in idautils.Functions():
+            for func_ea in sorted(idautils.Functions()):
                 name = idc.get_func_name(func_ea)
                 if not name:
                     continue
@@ -627,7 +627,7 @@ class GraphAnalyzer(IncrementalAnalyzer):
             
             # Explore called functions
             if func_ea in self.call_graph:
-                for called_func in self.call_graph[func_ea]:
+                for called_func in sorted(self.call_graph[func_ea]):
                     dfs(called_func, depth + 1)
                     if self._nodes_visited > budget or len(chains) >= max_chains_per_entry:
                         break
@@ -715,7 +715,7 @@ class GraphAnalyzer(IncrementalAnalyzer):
         external_edges = 0
         
         for func in cluster_funcs:
-            for called in self.call_graph.get(func, set()):
+            for called in sorted(self.call_graph.get(func, set())):
                 if called in cluster_funcs:
                     internal_edges += 1
                 else:

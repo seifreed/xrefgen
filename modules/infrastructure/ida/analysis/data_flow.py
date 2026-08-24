@@ -259,7 +259,7 @@ class DataFlowAnalyzer(IncrementalAnalyzer):
 
     def _iter_functions(self):
         """Yield (func_ea, func) for all valid functions."""
-        for func_ea in idautils.Functions():
+        for func_ea in sorted(idautils.Functions()):
             func = ida_funcs.get_func(func_ea)
             if func:
                 yield func_ea, func
@@ -278,7 +278,29 @@ class DataFlowAnalyzer(IncrementalAnalyzer):
         return "DataFlowAnalyzer"
 
     def analyze(self) -> List[Tuple[int, int, str, float]]:
+        self.reset_analysis_state()
         return super().analyze()
+
+    def reset_analysis_state(self):
+        """Reset interprocedural summaries before a full deterministic pass."""
+        self.tainted_regs.clear()
+        self.tainted_mem.clear()
+        self.taint_kinds_regs.clear()
+        self.taint_kinds_mem.clear()
+        self.taint_payload_regs.clear()
+        self.taint_kind_xrefs.clear()
+        self.return_values.clear()
+        self.taint_summaries.clear()
+        self.taint_summaries_arg.clear()
+        self.taint_summaries_mem.clear()
+        self._heap_aliases.clear()
+        self._mem_intervals.clear()
+        self._block_out_states.clear()
+        self._block_kind_states.clear()
+        self._block_last_defs.clear()
+        self._block_rd_in.clear()
+        self._ip_cache.clear()
+        self._pending_control_flow_results = []
 
     def _build_tuning_table(self, config: Dict) -> Dict:
         table = {}
@@ -1129,7 +1151,7 @@ class DataFlowAnalyzer(IncrementalAnalyzer):
         except (TypeError, ValueError, AttributeError, RuntimeError):
             pass
         try:
-            for func_ea in idautils.Functions():
+            for func_ea in sorted(idautils.Functions()):
                 name = idc.get_func_name(func_ea)
                 if not name:
                     continue
