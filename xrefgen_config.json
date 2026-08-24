@@ -14,6 +14,9 @@
         "txt_include_evidence": false,
         "output_name_mode": "idb",
         "slow_functions_report": "_xrefgen_slow.json",
+        "findings_output_file": "_xrefgen_findings.json",
+        "relationships_output_file": "_xrefgen_relationships.json",
+        "rejections_output_file": "_xrefgen_rejections.json",
         "log_file": null,
         "log_level": "info"
     },

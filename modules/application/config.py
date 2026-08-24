@@ -55,7 +55,10 @@ class Config:
                     "register_resolve_back_depth": 10,
                     "pointer_chain_max_depth": 5,
                 },
-                "taint_sources": ["recv", "read", "fread", "scanf", "gets"],
+                "taint_sources": [
+                    "recv", "read", "fread", "scanf", "gets", "getchar",
+                    "recvfrom", "ReadFile",
+                ],
                 "string_sources": [
                     "gets",
                     "fgets",
@@ -76,7 +79,10 @@ class Config:
                     "scanf",
                     "fscanf",
                 ],
-                "taint_sinks": ["system", "exec", "strcpy", "sprintf", "memcpy"],
+                "taint_sinks": [
+                    "system", "exec", "strcpy", "sprintf", "memcpy", "execve",
+                    "ShellExecute",
+                ],
                 "taint_carrying_apis": [
                     "memcpy",
                     "memmove",
@@ -103,6 +109,8 @@ class Config:
                 "taint_interprocedural_depth": 1,
                 "taint_interprocedural_fanout": 5,
                 "stack_arg_win_slots": [0, 8, 16, 24],
+                "sink_exec_keywords": ["exec", "system", "popen", "createprocess"],
+                "sink_string_keywords": ["str", "sprintf", "printf"],
             },
             "obfuscation": {
                 "enabled": True,
