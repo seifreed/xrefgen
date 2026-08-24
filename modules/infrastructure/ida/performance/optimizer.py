@@ -193,6 +193,8 @@ class PerformanceOptimizer:
             modified.add(func_ea)
 
         self._pending_function_hashes = current_hashes
+        for func_ea in modified:
+            self.analysis_cache.pop(func_ea, None)
 
         print(f"[XrefGen] Found {len(modified)} modified functions for analysis")
         return modified
@@ -463,7 +465,8 @@ class IncrementalAnalyzer(IDAXrefAnalyzer):
         for func_ea in idautils.Functions():
             if self.modified_functions and func_ea not in self.modified_functions:
                 continue
-            func = ida_funcs.get_func(func_ea)
+            get_func = getattr(ida_funcs, "get_func", None)
+            func = get_func(func_ea) if callable(get_func) else None
             if func:
                 results.extend(self.analyze_function(func))
         return results

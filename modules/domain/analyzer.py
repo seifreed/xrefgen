@@ -30,11 +30,11 @@ class XrefAnalyzer(ABC):
         key = (source, target)
         self.xrefs[key] = xref_type
         prev_conf = self.confidence_scores.get(key, 0.0)
-        prev_count = self._evidence.counts().get(key, 0)
-        new_count = prev_count + 1
-        boosted = min(1.0, max(prev_conf, confidence) + 0.05 * new_count)
-        self.confidence_scores[key] = boosted
+        # We maintain the highest confidence seen for this xref
+        new_conf = min(1.0, max(prev_conf, confidence))
+        self.confidence_scores[key] = new_conf
         self._evidence.add_count(source, target)
+        return True
 
     def add_evidence(self, source: int, target: int, etype: str):
         self._evidence.add(source, target, etype)

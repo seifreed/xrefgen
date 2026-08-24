@@ -1,9 +1,13 @@
-"""Run real analysis tests inside IDA (no mocks).
-Usage: In IDA Python console -> exec(open('scripts/ida_real_tests.py').read())
+"""Run real analysis checks inside IDA (no mocks).
+Usage: In the IDA console, execute this file from the repository root.
 """
+import json
+import os
 import ida_nalt
+import idc
 from modules.application.config import Config
 from modules.application.registry import build_modules
+from modules.domain.results import ResultStore
 from modules.infrastructure.ida.performance.optimizer import PerformanceOptimizer
 
 cfg = Config().config
@@ -17,13 +21,49 @@ results_by_module = optimizer.analyze_sequential(modules, modified_only=False)
 
 # Basic checks: each module returns a list
 for name, res in results_by_module.items():
-    assert isinstance(res, list), f"Module {name} did not return a list"
+    if not isinstance(res, list):
+        raise ValueError(f"Module {name} did not return a list (got {type(res)})")
 
-# Sanity: total results list can be empty, but structure must be tuples
+# Validate the same export contract used by the production orchestrator.
 all_results = []
 for res in results_by_module.values():
     all_results.extend(res)
+
 for item in all_results:
-    assert isinstance(item, tuple) and len(item) == 4, "Invalid xref tuple"
+    if not (isinstance(item, tuple) and len(item) == 4):
+        raise ValueError(f"Invalid xref structure: expected 4-tuple, got {item}")
+
+store = ResultStore(
+    source_is_control_flow=lambda ea: idc.print_insn_mnem(ea).lower()
+    in {"call", "bl", "blx", "jal", "jalr", "jmp", "br", "blr"},
+    target_is_executable=lambda ea: any(
+        getattr(module, "is_valid_reference", lambda _ea: False)(ea)
+        for module in modules
+    ),
+    already_exists=lambda source, target: any(
+        getattr(module, "is_already_in_ida", lambda _source, _target: False)(source, target)
+        for module in modules
+    ),
+)
+for item in all_results:
+    store.add(*item)
+
+expected_path = os.environ.get("XREFGEN_EXPECTED_JSON")
+if expected_path:
+    with open(expected_path, encoding="utf-8") as expected_file:
+        expected = json.load(expected_file)
+    actual = {(f"0x{s:x}", f"0x{t:x}", kind) for s, t, kind, _ in store.xrefs()}
+    wanted = {
+        (entry["source"], entry["target"], entry["kind"])
+        for entry in expected.get("expected_xrefs", [])
+    }
+    forbidden = {
+        (entry["source"], entry["target"], entry["kind"])
+        for entry in expected.get("forbidden_xrefs", [])
+    }
+    if not wanted.issubset(actual):
+        raise ValueError(f"Missing expected xrefs: {sorted(wanted - actual)}")
+    if actual.intersection(forbidden):
+        raise ValueError(f"Forbidden xrefs emitted: {sorted(actual.intersection(forbidden))}")
 
 print("[IDA Real Tests] OK: modules executed, results validated")

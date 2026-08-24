@@ -501,7 +501,7 @@ class CrossArchAnalyzer(IncrementalAnalyzer):
                     if target:
                         self.add_xref(head, target, "x86_thiscall", 0.8)
                         results.append((head, target, "x86_thiscall", 0.8))
-            elif self._is_x86_fastcall(head):
+            elif mnem == "call" and self._is_x86_fastcall(head):
                 target = idc.get_operand_value(head, 0)
                 if self.is_valid_reference(target):
                     self.add_xref(head, target, "x86_fastcall", 0.85)
@@ -516,15 +516,20 @@ class CrossArchAnalyzer(IncrementalAnalyzer):
     
     def _resolve_x86_thiscall(self, call_ea: int) -> Optional[int]:
         """Resolve thiscall vtable call"""
-        # Look for pattern: mov ecx, object; call [ecx+offset]
+        # Resolve the object pointer and read the vtable slot.
         op_type = idc.get_operand_type(call_ea, 0)
         if op_type == idc.o_displ:
-            # Call through vtable
             op_str = idc.print_operand(call_ea, 0)
             if has_reg(op_str, "ecx"):
                 _base, offset = extract_bracket_base_offset(op_str)
                 if offset is not None:
-                    return None  # Simplified
+                    loaded = scan_back_for_reg_source(call_ea, "ecx", max_back=10)
+                    if loaded:
+                        _ea, src_type, base = loaded
+                        if src_type in (idc.o_imm, idc.o_mem, idc.o_displ) and base:
+                            target = idc.get_wide_dword(base + offset)
+                            if target and self.is_valid_reference(target):
+                                return target
 
         return None
     

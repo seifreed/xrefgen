@@ -8,7 +8,6 @@ Version: 0.5.0-alpha.1
 """
 
 import sys
-import builtins
 import os
 import time
 import argparse
@@ -60,37 +59,6 @@ def _dbg_log(msg: str):
                 _f.write(f"[{ts}] {msg}\n")
     except (IOError, OSError):
         pass
-
-
-def _install_safe_print():
-    """Install a print() shim that avoids MSVCRT format pitfalls in IDA.
-    Routes through ida_kernwin.msg("%s") to prevent stray %% interpretation
-    and mitigates codepage issues with non-ASCII by best-effort str().
-    """
-    try:
-        import idaapi as _ia
-    except ImportError:
-        return
-
-    def _safe_print(*args, sep=" ", end="\n", file=None, flush=False):
-        try:
-            s = sep.join(str(a) for a in args)
-        except (TypeError, ValueError):
-            try:
-                s = sep.join(repr(a) for a in args)
-            except (TypeError, ValueError):
-                s = "<print failure>"
-        try:
-            _ia.msg("%s", s)
-            if end:
-                _ia.msg("%s", end)
-        except (TypeError, ValueError, AttributeError):
-            try:
-                sys.__stdout__.write(s + end)
-            except (IOError, OSError, AttributeError):
-                pass
-
-    builtins.print = _safe_print
 
 
 class XrefGen:
@@ -321,15 +289,15 @@ class XrefGen:
     def _wait_for_analysis(self, timeout: int = 60) -> bool:
         """Wait for IDA auto-analysis to complete"""
         _info("Waiting for IDA auto-analysis to complete...")
-
-        start = time.time()
-        while time.time() - start < timeout:
-            if ida_auto.auto_is_ok():
-                _info("Auto-analysis complete")
-                return True
-            time.sleep(1)
-
-        return False
+        try:
+            if not ida_auto.auto_is_ok() and hasattr(ida_auto, "auto_wait"):
+                ida_auto.auto_wait()
+            ready = bool(ida_auto.auto_is_ok())
+        except (TypeError, ValueError, AttributeError, RuntimeError):
+            ready = False
+        if ready:
+            _info("Auto-analysis complete")
+        return ready
 
     def _get_arch_name(self) -> str:
         """Get architecture name"""
@@ -421,35 +389,6 @@ def main():
     except (ImportError, ModuleNotFoundError):
         print("Error: This script must be run from within IDA Pro")
         return
-    # Suppress MSVCRT invalid parameter popups on Windows to avoid disruptive dialogs
-    try:
-        if os.name == "nt":
-            import ctypes
-
-            PVF = ctypes.WINFUNCTYPE(
-                None,
-                ctypes.c_wchar_p,
-                ctypes.c_wchar_p,
-                ctypes.c_wchar_p,
-                ctypes.c_uint,
-                ctypes.c_uint,
-            )
-
-            def _noop_invalid_param_handler(expr, func, file, line, pReserved):
-                return
-
-            _cb = PVF(_noop_invalid_param_handler)
-            ctypes.cdll.msvcrt._set_invalid_parameter_handler(_cb)
-            try:
-                # Disable abort message box/report fault
-                ctypes.cdll.msvcrt._set_abort_behavior(0, 0x1 | 0x2)
-            except (OSError, AttributeError):
-                pass
-    except (ImportError, OSError, AttributeError):
-        pass
-    # Install safe print shim early so all subsequent prints are safe
-    _install_safe_print()
-
     # Parse arguments (if any)
     parser = argparse.ArgumentParser(
         description="XrefGen - Advanced Cross-Reference Generator"

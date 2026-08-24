@@ -122,7 +122,7 @@ class Config:
             },
             "architecture": {
                 "enabled": True,
-                "architectures": ["x86", "x64", "arm", "arm64", "mips", "wasm"],
+                "architectures": ["x86", "x64", "arm", "arm64", "mips"],
             },
             "graph": {
                 "enabled": True,
