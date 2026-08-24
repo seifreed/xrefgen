@@ -29,7 +29,7 @@ class EntryPointFinder:
                 entry_points.append(ea)
         entry_points.extend(self._find_tls_callbacks())
         entry_points.extend(self._find_ctors_dtors())
-        return list(set(entry_points))
+        return sorted(set(entry_points))
 
     def _find_tls_callbacks(self) -> List[int]:
         callbacks = []

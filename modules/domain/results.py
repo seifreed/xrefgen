@@ -11,6 +11,7 @@ CONTROL_FLOW_TYPES = frozenset(
         "call_edge",
         "callback_arg",
         "wrapper_call",
+        "trampoline",
         "mips_jalr",
         "mips_jr",
         "mips_plt_call",

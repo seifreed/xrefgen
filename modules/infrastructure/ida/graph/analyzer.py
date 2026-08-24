@@ -202,7 +202,7 @@ class GraphAnalyzer(IncrementalAnalyzer):
 
     def _analyze_hubs(self) -> List[Tuple[int, int, str, float]]:
         results = []
-        for func_ea, called in self.call_graph.items():
+        for func_ea, called in sorted(self.call_graph.items()):
             degree = len(called) + len(self.reverse_call_graph.get(func_ea, set()))
             if degree >= self.hub_threshold:
                 for target in sorted(called):
@@ -215,7 +215,7 @@ class GraphAnalyzer(IncrementalAnalyzer):
         results = []
         if self.cycle_max_len < 2:
             return results
-        for func_ea, called in self.call_graph.items():
+        for func_ea, called in sorted(self.call_graph.items()):
             for target in sorted(called):
                 if func_ea in self.call_graph.get(target, set()):
                     conf = self.confidence("call_cycle")
@@ -389,8 +389,8 @@ class GraphAnalyzer(IncrementalAnalyzer):
                     break
             if target and self.is_valid_reference(target):
                 conf = self.confidence("trampoline")
-                self.add_xref(func_ea, target, "trampoline", conf)
-                results.append((func_ea, target, "trampoline", conf))
+                self.add_xref(head, target, "trampoline", conf)
+                results.append((head, target, "trampoline", conf))
         return results
 
     def _detect_compiler_profile(self) -> str:
