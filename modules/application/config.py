@@ -182,7 +182,7 @@ class Config:
                 "cache_ttl_seconds": 3600,
                 "max_function_ms": 0,
                 "skip_slow_functions": False,
-                "skip_slow_graph": True,
+                "skip_slow_graph": False,
             },
             "ida_features": {
                 "enabled": False,

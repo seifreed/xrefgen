@@ -11,7 +11,16 @@ sys.path.insert(0, str(ROOT))
 from modules import __version__
 
 
-FILES = ("xrefgen.py", "xrefgen_plugin.py", "README.md", "LICENSE", "CHANGELOG.md")
+FILES = (
+    "xrefgen.py",
+    "xrefgen_plugin.py",
+    "xrefgen_config.json",
+    "README.md",
+    "LICENSE",
+    "CHANGELOG.md",
+    "SECURITY.md",
+    "docs/compatibility.md",
+)
 
 
 def build(output: pathlib.Path) -> pathlib.Path:

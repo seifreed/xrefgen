@@ -40,14 +40,14 @@ It is especially useful for:
 | **Incremental & Cached Analysis** | Only re-analyze modified functions |
 | **Confidence Scoring** | Each xref has a confidence score |
 | **Evidence Tracking** | Evidence is exported in detailed/JSON/CSV formats |
-| **Multi-Architecture** | x86, x64, ARM, ARM64, MIPS, WASM |
+| **Multi-Architecture** | x86, x64, ARM, ARM64, MIPS |
 
 ## Supported Architectures
 
 - x86 / x64
 - ARM / ARM64
 - MIPS
-- WebAssembly (WASM)
+- WebAssembly (WASM): planned/experimental, not currently supported
 
 ## Modules (What It Analyzes)
 

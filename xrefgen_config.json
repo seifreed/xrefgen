@@ -115,7 +115,7 @@
             "call_chain_min_length": 2
         },
         "ml": {
-            "enabled": true,
+            "enabled": false,
             "model_path": null,
             "similarity_threshold": 0.85,
             "use_embeddings": false,
@@ -129,10 +129,10 @@
             "cache_ttl_seconds": 3600,
             "max_function_ms": 0,
             "skip_slow_functions": false,
-            "skip_slow_graph": true
+            "skip_slow_graph": false
         },
         "ida_features": {
-            "enabled": true,
+            "enabled": false,
             "use_lumina": false,
             "use_microcode": true,
             "use_type_libraries": true

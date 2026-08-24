@@ -6,11 +6,31 @@ on:
 
 jobs:
   python:
+    strategy:
+      matrix:
+        python-version: ["3.9", "3.10", "3.11", "3.12"]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
-          python-version: "3.11"
+          python-version: ${{ matrix.python-version }}
       - run: python -m pip install --upgrade pytest
       - run: python -m pytest -q
+      - run: python scripts/build_release.py dist/xrefgen-ci.zip
+      - run: |
+          python - <<'PY'
+          import zipfile
+          from pathlib import Path
+
+          required = {
+              "xrefgen/xrefgen_config.json",
+              "xrefgen/docs/compatibility.md",
+              "xrefgen/SECURITY.md",
+          }
+          with zipfile.ZipFile(Path("dist/xrefgen-ci.zip")) as archive:
+              names = set(archive.namelist())
+          missing = required - names
+          if missing:
+              raise SystemExit(f"release missing: {sorted(missing)}")
+          PY
