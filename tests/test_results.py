@@ -11,6 +11,7 @@ def test_result_store_exports_only_valid_control_flow_and_deduplicates():
     assert store.add(0x1000, 0x2000, "indirect_call", 0.9, evidence=("dataflow",))
     assert not store.add(0x3000, 0x4000, "indirect_call", 1.0)
     assert not store.add(0x1000, 0x2000, "ml_similarity", 1.0)
+    assert not store.add(0x1000, 0x2000, "ml_similarity", 0.8)
 
     assert store.xrefs() == [(0x1000, 0x2000, "indirect_call", 0.9)]
     assert store.evidence() == {(0x1000, 0x2000): {"graph", "dataflow"}}
