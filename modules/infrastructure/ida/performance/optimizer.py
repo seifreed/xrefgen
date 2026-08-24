@@ -141,6 +141,7 @@ class PerformanceOptimizer:
             return
 
         cache_file = os.path.join(self.cache_dir, f"{self.binary_hash}.cache")
+        temporary_file = None
 
         try:
             cache_data = {
@@ -153,14 +154,23 @@ class PerformanceOptimizer:
                 "analysis": {str(k): v for k, v in self.analysis_cache.items()},
             }
 
-            with open(cache_file, "w", encoding="utf-8") as f:
+            temporary_file = f"{cache_file}.tmp"
+            with open(temporary_file, "w", encoding="utf-8") as f:
                 json.dump(cache_data, f)
+                f.flush()
+                os.fsync(f.fileno())
+            os.replace(temporary_file, cache_file)
 
             print(
                 f"[XrefGen] Saved JSON cache with {len(self.function_cache)} functions"
             )
         except (IOError, OSError, TypeError, ValueError) as e:
             print(f"[XrefGen] Error saving cache: {e}")
+            try:
+                if temporary_file and os.path.exists(temporary_file):
+                    os.remove(temporary_file)
+            except OSError:
+                pass
 
     def get_modified_functions(self) -> Set[int]:
         """Detect functions modified since last analysis using reliable hashing"""
