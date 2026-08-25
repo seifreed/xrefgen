@@ -7,7 +7,7 @@
     {"name": "c_jump_table", "language": "c", "source": "c_jump_table.c", "ground_truth": "c_jump_table_positive.ground_truth.json", "variants": ["O0"]},
     {"name": "c_global_dispatch", "language": "c", "source": "c_global_dispatch.c", "ground_truth": "c_global_dispatch_positive.ground_truth.json", "variants": ["O0"]},
     {"name": "cpp_vtable", "language": "cpp", "source": "cpp_vtable.cpp"},
-    {"name": "cpp_wrapper", "language": "cpp", "source": "cpp_wrapper.cpp"},
+    {"name": "cpp_wrapper", "language": "cpp", "source": "cpp_wrapper.cpp", "ground_truth": "cpp_wrapper_positive.ground_truth.json", "variants": ["O0"]},
     {"name": "cpp_rtti", "language": "cpp", "source": "cpp_rtti.cpp"},
     {"name": "rust_trait", "language": "rust", "source": "rust_trait.rs", "variants": ["O0", "O1", "O2"]},
     {"name": "rust_closure", "language": "rust", "source": "rust_closure.rs", "variants": ["O0", "O1", "O2"]},
