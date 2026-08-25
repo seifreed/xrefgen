@@ -17,8 +17,9 @@ class AntiAnalysisDetector:
         for head in idautils.Heads(func.start_ea, func.end_ea):
             mnem = idc.print_insn_mnem(head).lower()
             if mnem in self.mnem_patterns:
-                self.analyzer.add_xref(head, head, "anti_analysis", 0.7)
-                results.append((head, head, "anti_analysis", 0.7))
+                results.append(self.analyzer.emit_finding(
+                    head, head, "anti_analysis", 0.7, ("anti_analysis",)
+                ))
             elif mnem == "call":
                 try:
                     target = idc.get_operand_value(head, 0)
@@ -26,6 +27,7 @@ class AntiAnalysisDetector:
                 except (TypeError, ValueError, AttributeError, RuntimeError):
                     name = ""
                 if any(p in name for p in self.api_patterns):
-                    self.analyzer.add_xref(head, target, "anti_analysis", 0.8)
-                    results.append((head, target, "anti_analysis", 0.8))
+                    results.append(self.analyzer.emit_finding(
+                        head, target, "anti_analysis", 0.8, ("anti_analysis",)
+                    ))
         return results

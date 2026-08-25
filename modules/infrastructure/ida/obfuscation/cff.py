@@ -49,8 +49,9 @@ class CFFDetector:
                 real_flow = self._resolve_flattened_flow(func, dispatcher)
                 for source, target, conf in real_flow:
                     conf_val = min(conf, self.resolved_confidence) if conf is not None else self.resolved_confidence
-                    self.analyzer.add_xref(source, target, "cff_resolved", conf_val)
-                    results.append((source, target, "cff_resolved", conf_val))
+                    results.append(self.analyzer.emit_finding(
+                        source, target, "cff_resolved", conf_val, ("cff",)
+                    ))
         return results
 
     def _iter_functions(self):

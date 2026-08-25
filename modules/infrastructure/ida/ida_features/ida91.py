@@ -109,13 +109,16 @@ class IDA91Analyzer(IDAXrefAnalyzer):
 
                         def visit_expr(self, e):
                             if e.op == ida_hexrays.cot_call:
+                                callsite_ea = getattr(e, "ea", func_ea)
+                                if callsite_ea in (None, idaapi.BADADDR):
+                                    callsite_ea = func_ea
                                 # Direct callee
                                 callee_ea = idaapi.BADADDR
                                 if e.x.op == ida_hexrays.cot_obj:
                                     callee_ea = e.x.obj_ea
                                     if callee_ea != idaapi.BADADDR:
                                         self.calls.append(
-                                            (func_ea, callee_ea, "hexrays_call", 0.9)
+                                            (callsite_ea, callee_ea, "hexrays_call", 0.9)
                                         )
                                 else:
                                     # Indirect call; try to resolve from lvar mapping, array-of-fptr, or member ptr
@@ -139,7 +142,7 @@ class IDA91Analyzer(IDAXrefAnalyzer):
                                         if target and target != idaapi.BADADDR:
                                             self.calls.append(
                                                 (
-                                                    func_ea,
+                                                    callsite_ea,
                                                     target,
                                                     "hexrays_indirect_resolved",
                                                     0.85,
@@ -148,8 +151,8 @@ class IDA91Analyzer(IDAXrefAnalyzer):
                                         else:
                                             self.calls.append(
                                                 (
-                                                    func_ea,
-                                                    func_ea,
+                                                    callsite_ea,
+                                                    callsite_ea,
                                                     "hexrays_indirect_call",
                                                     0.5,
                                                 )
@@ -162,8 +165,8 @@ class IDA91Analyzer(IDAXrefAnalyzer):
                                     ):
                                         self.calls.append(
                                             (
-                                                func_ea,
-                                                func_ea,
+                                                callsite_ea,
+                                                callsite_ea,
                                                 "hexrays_indirect_call",
                                                 0.5,
                                             )
@@ -380,8 +383,19 @@ class IDA91Analyzer(IDAXrefAnalyzer):
 
                     v = CallVisitor()
                     v.apply_to(cfunc.body, None)
-                    results.extend(v.calls)
-                    results.extend(v.data_refs)
+                    for source, target, kind, confidence in v.calls:
+                        if kind in ("hexrays_call", "hexrays_indirect_resolved"):
+                            results.append(self.emit_control_flow(
+                                source, target, kind, confidence, ("hexrays",)
+                            ))
+                        else:
+                            results.append(self.emit_finding(
+                                source, target, kind, confidence, ("hexrays",)
+                            ))
+                    for source, target, kind, confidence in v.data_refs:
+                        results.append(self.emit_finding(
+                            source, target, kind, confidence, ("hexrays",)
+                        ))
 
                 except (TypeError, ValueError, AttributeError, RuntimeError):
                     continue

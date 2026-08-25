@@ -46,12 +46,9 @@ class EncryptedStringDetector:
                 if norm in self._seen_normalized:
                     continue
                 self._seen_normalized.add(norm)
-                self.analyzer.add_xref(source, string_addr, "decrypted_string", 0.8)
-                try:
-                    self.analyzer.add_evidence(source, string_addr, "strings")
-                except (TypeError, ValueError, AttributeError, RuntimeError):
-                    pass
-                results.append((source, string_addr, "decrypted_string", 0.8))
+                results.append(self.analyzer.emit_finding(
+                    source, string_addr, "decrypted_string", 0.8, ("strings",)
+                ))
                 self.encrypted_strings[string_addr] = norm
                 self.analyzer.string_map[string_addr] = norm
         results.extend(self._find_stack_string_calls(func))
@@ -254,12 +251,9 @@ class EncryptedStringDetector:
             target = idc.get_operand_value(head, 0)
             s = self._extract_stack_string(head, func)
             if s and self.analyzer.is_valid_reference(target):
-                self.analyzer.add_xref(head, target, "stack_string_arg", 0.6)
-                try:
-                    self.analyzer.add_evidence(head, target, "strings")
-                except (TypeError, ValueError, AttributeError, RuntimeError):
-                    pass
-                results.append((head, target, "stack_string_arg", 0.6))
+                results.append(self.analyzer.emit_finding(
+                    head, target, "stack_string_arg", 0.6, ("strings",)
+                ))
         return results
 
     def _find_heap_string_calls(self, func) -> List[Tuple[int, int, str, float]]:
@@ -291,12 +285,9 @@ class EncryptedStringDetector:
                     if self._uses_register_as_arg(head, ret_reg) or any(c in name for c in copy_names):
                         data = bytes_map_to_bytes(bytes_map)
                         if data and self._is_valid_string(data):
-                            self.analyzer.add_xref(head, target, "heap_string_arg", 0.6)
-                            try:
-                                self.analyzer.add_evidence(head, target, "strings")
-                            except (TypeError, ValueError, AttributeError, RuntimeError):
-                                pass
-                            results.append((head, target, "heap_string_arg", 0.6))
+                            results.append(self.analyzer.emit_finding(
+                                head, target, "heap_string_arg", 0.6, ("strings",)
+                            ))
                     last_alloc_ea = None
                     bytes_map = {}
             elif last_alloc_ea is not None:

@@ -31,14 +31,16 @@ class OpaquePredicateDetector:
                     if always_taken:
                         self.always_taken_branches.add(head)
                         target = idc.get_operand_value(head, 0)
-                        self.analyzer.add_xref(head, target, "opaque_always_taken", 0.95)
-                        results.append((head, target, "opaque_always_taken", 0.95))
+                        results.append(self.analyzer.emit_finding(
+                            head, target, "opaque_always_taken", 0.95, ("opaque",)
+                        ))
                     else:
                         self.never_taken_branches.add(head)
                         next_ea = idc.next_head(head)
                         if next_ea != idc.BADADDR:
-                            self.analyzer.add_xref(head, next_ea, "opaque_never_taken", 0.95)
-                            results.append((head, next_ea, "opaque_never_taken", 0.95))
+                            results.append(self.analyzer.emit_finding(
+                                head, next_ea, "opaque_never_taken", 0.95, ("opaque",)
+                            ))
         return results
 
     def _iter_functions(self):

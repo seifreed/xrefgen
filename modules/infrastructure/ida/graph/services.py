@@ -73,8 +73,13 @@ class ComplexityAnalyzer:
             if complexity > self.a.complexity_threshold:
                 hidden_refs = self._analyze_complex_function(func, complexity)
                 for source, target, confidence in hidden_refs:
-                    self.a.add_xref(source, target, f"complex_func_cc_{complexity}", confidence)
-                    results.append((source, target, f"complex_func_cc_{complexity}", confidence))
+                    results.append(self.a.emit_relationship(
+                        source,
+                        target,
+                        f"complex_func_cc_{complexity}",
+                        confidence,
+                        ("complexity",),
+                    ))
         return results
 
     def _calculate_cyclomatic_complexity(self, func) -> int:

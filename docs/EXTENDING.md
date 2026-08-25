@@ -7,7 +7,8 @@ This guide shows how to add a new analyzer module.
 Create a new file in `modules/infrastructure/ida/<area>/my_analyzer.py`:
 
 ```python
-from typing import List, Tuple
+from typing import List
+from modules.domain.results import AnalysisResult
 from modules.infrastructure.ida.base import IDAXrefAnalyzer
 
 class MyAnalyzer(IDAXrefAnalyzer):
@@ -17,12 +18,24 @@ class MyAnalyzer(IDAXrefAnalyzer):
     def get_name(self) -> str:
         return "MyAnalyzer"
 
-    def analyze(self) -> List[Tuple[int, int, str, float]]:
+    def analyze(self) -> List[AnalysisResult]:
         results = []
         # ... your analysis logic ...
-        # self.add_xref(source, target, "my_type", 0.9)
+        # results.append(self.emit_control_flow(source, target, "indirect_call", 0.9))
         return results
 ```
+
+Analysis modules should return typed results. Use the emitters from
+`XrefAnalyzer` so the result role is explicit:
+
+```python
+return [self.emit_control_flow(call_ea, target, "indirect_call", 0.9)]
+return [self.emit_finding(source_ea, target_ea, "taint_flow", 0.7)]
+return [self.emit_relationship(func_a, func_b, "ml_similarity", 0.8)]
+```
+
+Legacy four-tuples are still accepted for external modules during the alpha
+period, but new modules should not infer roles from `kind` strings.
 
 For incremental analysis, inherit from:
 

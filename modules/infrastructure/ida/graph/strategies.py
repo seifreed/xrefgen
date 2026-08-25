@@ -99,12 +99,9 @@ class SEHResolver:
                     handler = 0
                 if handler and self.a.is_valid_reference(handler):
                     conf = self.a.confidence("seh_handler")
-                    self.a.add_xref(ea, handler, "seh_handler", conf)
-                    try:
-                        self.a.add_evidence(ea, handler, "seh")
-                    except (TypeError, ValueError, AttributeError, RuntimeError):
-                        pass
-                    results.append((ea, handler, "seh_handler", conf))
+                    results.append(self.a.emit_finding(
+                        ea, handler, "seh_handler", conf, ("seh",)
+                    ))
                 ea += ptr
         return results
 
@@ -139,13 +136,10 @@ class VTableResolver:
                         continue
                     seen_entries.add(entry_ea)
                     conf = self.a.confidence("vtable_named")
-                    self.a.add_xref(entry_ea, func_ptr, "vtable_entry", conf)
-                    if is_rtti:
-                        try:
-                            self.a.add_evidence(entry_ea, func_ptr, "rtti_vtable")
-                        except (TypeError, ValueError, AttributeError, RuntimeError):
-                            pass
-                    results.append((entry_ea, func_ptr, "vtable_entry", conf))
+                    evidence = ("rtti_vtable",) if is_rtti else ("vtable",)
+                    results.append(self.a.emit_finding(
+                        entry_ea, func_ptr, "vtable_entry", conf, evidence
+                    ))
         for seg_ea in idautils.Segments():
             seg = ida_segment.getseg(seg_ea)
             if not seg:
@@ -170,8 +164,9 @@ class VTableResolver:
                                 continue
                             seen_entries.add(entry_ea)
                             conf = self.a.confidence("vtable_scan")
-                            self.a.add_xref(entry_ea, func_ptr, "vtable_entry", conf)
-                            results.append((entry_ea, func_ptr, "vtable_entry", conf))
+                            results.append(self.a.emit_finding(
+                                entry_ea, func_ptr, "vtable_entry", conf, ("vtable",)
+                            ))
                     run = []
                 ea += ptr_size
             if len(run) >= self.a.vtable_min_len:
@@ -180,6 +175,7 @@ class VTableResolver:
                         continue
                     seen_entries.add(entry_ea)
                     conf = self.a.confidence("vtable_scan")
-                    self.a.add_xref(entry_ea, func_ptr, "vtable_entry", conf)
-                    results.append((entry_ea, func_ptr, "vtable_entry", conf))
+                    results.append(self.a.emit_finding(
+                        entry_ea, func_ptr, "vtable_entry", conf, ("vtable",)
+                    ))
         return results

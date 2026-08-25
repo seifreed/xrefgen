@@ -103,7 +103,9 @@ class MLSimilarityAnalyzer(IDAXrefAnalyzer):
                     sim = inter / union
                     if sim >= threshold:
                         conf = min(0.95, 0.6 + 0.4 * sim)
-                        results.append((a, b, "ml_similarity", conf))
+                        results.append(self.emit_relationship(
+                            a, b, "ml_similarity", conf, ("mnemonic_jaccard",)
+                        ))
 
             return results
         except (TypeError, ValueError, AttributeError, RuntimeError) as e:

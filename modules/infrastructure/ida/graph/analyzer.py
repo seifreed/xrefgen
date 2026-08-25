@@ -212,8 +212,9 @@ class GraphAnalyzer(IncrementalAnalyzer):
             if degree >= self.hub_threshold:
                 for target in sorted(called):
                     conf = self.confidence("hub_call")
-                    self.add_xref(func_ea, target, "hub_call", conf)
-                    results.append((func_ea, target, "hub_call", conf))
+                    results.append(self.emit_relationship(
+                        func_ea, target, "hub_call", conf, ("graph",)
+                    ))
         return results
 
     def _analyze_cycles(self) -> List[Tuple[int, int, str, float]]:
@@ -224,8 +225,9 @@ class GraphAnalyzer(IncrementalAnalyzer):
             for target in sorted(called):
                 if func_ea in self.call_graph.get(target, set()):
                     conf = self.confidence("call_cycle")
-                    self.add_xref(func_ea, target, "call_cycle", conf)
-                    results.append((func_ea, target, "call_cycle", conf))
+                    results.append(self.emit_relationship(
+                        func_ea, target, "call_cycle", conf, ("graph",)
+                    ))
         return results
 
     # Vtable analysis now lives in VTableResolver.
@@ -592,8 +594,13 @@ class GraphAnalyzer(IncrementalAnalyzer):
                         depth_decay = self.confidence("call_chain_depth_decay", 0.1)
                         confidence = max(min_conf, (base_conf - (depth * depth_decay)) * chain_decay)
                         
-                        self.add_xref(source, target, f"call_chain_depth_{depth}", confidence)
-                        results.append((source, target, f"call_chain_depth_{depth}", confidence))
+                        results.append(self.emit_relationship(
+                            source,
+                            target,
+                            f"call_chain_depth_{depth}",
+                            confidence,
+                            ("call_chain",),
+                        ))
                     
                     self.call_chains.append(chain)
         
@@ -666,8 +673,13 @@ class GraphAnalyzer(IncrementalAnalyzer):
                 for func1 in cluster_funcs:
                     for func2 in cluster_funcs:
                         if func1 != func2 and func2 in self.call_graph.get(func1, set()):
-                            self.add_xref(func1, func2, f"cluster_{cluster_id}", cohesion)
-                            results.append((func1, func2, f"cluster_{cluster_id}", cohesion))
+                            results.append(self.emit_relationship(
+                                func1,
+                                func2,
+                                f"cluster_{cluster_id}",
+                                cohesion,
+                                ("cluster",),
+                            ))
                 
                 self.function_clusters.append({
                     'id': cluster_id,

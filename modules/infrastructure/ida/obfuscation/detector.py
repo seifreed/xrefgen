@@ -78,12 +78,9 @@ class ObfuscationDetector(IncrementalAnalyzer):
             
             if hash_ea:
                 # Xref from the hash loading point to the call site
-                self.add_xref(hash_ea, head, "api_hash_resolver", 0.7)
-                try:
-                    self.add_evidence(hash_ea, head, "api_hash")
-                except (TypeError, ValueError, AttributeError, RuntimeError):
-                    pass
-                results.append((hash_ea, head, "api_hash_resolver", 0.7))
+                results.append(self.emit_finding(
+                    hash_ea, head, "api_hash_resolver", 0.7, ("api_hash",)
+                ))
         return results
 
     def _detect_flattening(self, func) -> List[Tuple[int, int, str, float]]:
@@ -101,10 +98,7 @@ class ObfuscationDetector(IncrementalAnalyzer):
                     
         if jmp_count >= 6 and ind_jmp >= 2 and last_ind_jmp:
             # Xref from function entry to the dispatcher/indirect jump
-            self.add_xref(func.start_ea, last_ind_jmp, "flattening_suspect", 0.6)
-            try:
-                self.add_evidence(func.start_ea, last_ind_jmp, "obfuscation")
-            except (TypeError, ValueError, AttributeError, RuntimeError):
-                pass
-            results.append((func.start_ea, last_ind_jmp, "flattening_suspect", 0.6))
+            results.append(self.emit_finding(
+                func.start_ea, last_ind_jmp, "flattening_suspect", 0.6, ("obfuscation",)
+            ))
         return results

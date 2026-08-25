@@ -431,30 +431,14 @@ class DataFlowAnalyzer(IncrementalAnalyzer):
                                 source_ea, xref.frm, sink, kind, confidence
                             ):
                                 continue
-                            self.add_xref(
+                            self.taint_kind_xrefs[(source_ea, xref.frm)] = kind
+                            results.append(self.emit_finding(
                                 source_ea,
                                 xref.frm,
                                 f"taint_flow_{sink}",
                                 confidence * 0.9,
-                            )
-                            try:
-                                self.add_evidence(source_ea, xref.frm, "dataflow")
-                            except (
-                                TypeError,
-                                ValueError,
-                                AttributeError,
-                                RuntimeError,
-                            ):
-                                pass
-                            self.taint_kind_xrefs[(source_ea, xref.frm)] = kind
-                            results.append(
-                                (
-                                    source_ea,
-                                    xref.frm,
-                                    f"taint_flow_{sink}",
-                                    confidence * 0.9,
-                                )
-                            )
+                                ("dataflow",),
+                            ))
         return results
 
     def _propagate_taint_from_call(self, call_ea: int, source_func: int):
@@ -1335,14 +1319,13 @@ class DataFlowAnalyzer(IncrementalAnalyzer):
             v.apply_to(cfunc.body, None)
         except (TypeError, ValueError, AttributeError, RuntimeError):
             return results
+        typed_results = []
         for src, dst, kind, conf in results:
             if src and dst:
-                self.add_xref(src, dst, kind, conf)
-                try:
-                    self.add_evidence(src, dst, "hexrays")
-                except (TypeError, ValueError, AttributeError, RuntimeError):
-                    pass
-        return results
+                typed_results.append(self.emit_finding(
+                    src, dst, kind, conf, ("hexrays",)
+                ))
+        return typed_results
 
     def _mnem(self, ea: int, cache: Optional[dict]) -> str:
         if cache is None:
