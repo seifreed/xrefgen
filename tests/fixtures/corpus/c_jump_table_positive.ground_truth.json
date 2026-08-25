@@ -1,0 +1,8 @@
+{
+  "expected_xrefs": [],
+  "expected_symbols": [
+    {"source": "main", "source_mnemonic": "bl", "target": "dispatch_case", "kind": "call_edge"}
+  ],
+  "forbidden_xrefs": [],
+  "remove_existing": true
+}

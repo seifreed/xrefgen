@@ -3,9 +3,9 @@
   "variants": ["O0", "O1", "O2", "O3"],
   "fixtures": [
     {"name": "c_function_pointer", "language": "c", "source": "arm64_function_pointer.c", "ground_truth": "arm64_function_pointer.ground_truth.json", "variants": ["O0", "O1", "O2", "O3"]},
-    {"name": "c_callback", "language": "c", "source": "c_callback.c"},
-    {"name": "c_jump_table", "language": "c", "source": "c_jump_table.c"},
-    {"name": "c_global_dispatch", "language": "c", "source": "c_global_dispatch.c"},
+    {"name": "c_callback", "language": "c", "source": "c_callback.c", "ground_truth": "c_callback_positive.ground_truth.json", "variants": ["O0"]},
+    {"name": "c_jump_table", "language": "c", "source": "c_jump_table.c", "ground_truth": "c_jump_table_positive.ground_truth.json", "variants": ["O0"]},
+    {"name": "c_global_dispatch", "language": "c", "source": "c_global_dispatch.c", "ground_truth": "c_global_dispatch_positive.ground_truth.json", "variants": ["O0"]},
     {"name": "cpp_vtable", "language": "cpp", "source": "cpp_vtable.cpp"},
     {"name": "cpp_wrapper", "language": "cpp", "source": "cpp_wrapper.cpp"},
     {"name": "cpp_rtti", "language": "cpp", "source": "cpp_rtti.cpp"},

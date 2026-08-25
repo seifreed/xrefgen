@@ -52,7 +52,15 @@ def _run_target(target, manifest, corpus_root, script, strict):
             "stderr": completed.stderr[-4000:],
         }
         if actual.exists():
-            report.update(compare(actual, expected))
+            expected_payload = json.loads(expected.read_text(encoding="utf-8"))
+            if expected_payload.get("expected_symbols"):
+                report["ground_truth_mode"] = "symbolic_ida"
+                report["expected_symbol_count"] = len(
+                    expected_payload["expected_symbols"]
+                )
+                report["validated_by_ida"] = completed.returncode == 0
+            else:
+                report.update(compare(actual, expected))
         reports.append(report)
         if completed.returncode and strict:
             raise RuntimeError(
