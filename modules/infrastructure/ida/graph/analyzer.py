@@ -285,8 +285,10 @@ class GraphAnalyzer(IncrementalAnalyzer):
                 self._indirect_cache[call_ea] = res
                 for target, conf in res:
                     candidates.append((target, conf, "heuristic"))
+        fallthrough = idc.next_head(call_ea)
         for target, conf in self._resolve_hexrays_call(call_ea):
-            candidates.append((target, conf, "hexrays"))
+            if target not in (idc.BADADDR, fallthrough):
+                candidates.append((target, conf, "hexrays"))
         
         return self._merge_targets(candidates)
     
