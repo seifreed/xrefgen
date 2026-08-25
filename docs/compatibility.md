@@ -13,7 +13,9 @@ the `ida_ida.inf_*` APIs and is intended for:
 This repository does not contain IDA Pro or Hex-Rays, so these entries are
 targets rather than a certification claim. Run `scripts/ida_real_tests.py`
 inside each installation and compare the exported JSON with a corpus fixture.
-WebAssembly support is planned/experimental and is not enabled by default.
+WebAssembly parsing supports static `call_indirect` table entries and
+`br_table` block targets. Dynamic table indices remain findings rather than
+XRefer candidates; coverage still depends on IDA's WebAssembly loader.
 The source corpus is described by `tests/fixtures/corpus/manifest.json` and can
 be built with `python scripts/build_corpus.py`; MIPS and cross-target entries
 require a matching local compiler target.

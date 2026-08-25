@@ -47,7 +47,8 @@ It is especially useful for:
 - x86 / x64
 - ARM / ARM64
 - MIPS
-- WebAssembly (WASM): planned/experimental, not currently supported
+- WebAssembly (WASM): static `call_indirect` and `br_table` resolution when
+  the table index is statically known
 
 ## Modules (What It Analyzes)
 

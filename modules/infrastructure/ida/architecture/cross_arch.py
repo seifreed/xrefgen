@@ -6,6 +6,7 @@ Handles architecture-specific patterns for ARM, MIPS, and WebAssembly
 from typing import Dict, List, Tuple, Optional
 import idautils
 import idc
+import ida_nalt
 import ida_funcs
 import ida_bytes
 import ida_segregs
@@ -17,6 +18,7 @@ except ImportError:
     ida_ida = None
 from modules.infrastructure.ida.performance.optimizer import IncrementalAnalyzer
 from modules.infrastructure.ida.utils.insn import scan_back_for_reg_source
+from modules.infrastructure.ida.architecture.wasm import WasmModule
 
 class CrossArchAnalyzer(IncrementalAnalyzer):
     """Architecture-specific xref analysis"""
@@ -24,7 +26,7 @@ class CrossArchAnalyzer(IncrementalAnalyzer):
     def __init__(self, config: Dict = None):
         super().__init__(config)
         self.supported_archs = config.get('architectures', 
-            ['x86', 'x64', 'arm', 'arm64', 'mips'])
+            ['x86', 'x64', 'arm', 'arm64', 'mips', 'wasm'])
         
         # Detect current architecture
         self.arch = self._detect_architecture()
@@ -449,48 +451,59 @@ class CrossArchAnalyzer(IncrementalAnalyzer):
     def _is_plt_address(self, ea: int) -> bool:
         return is_in_segment(ea, ".plt")
     
+    def _wasm_module(self) -> Optional[WasmModule]:
+        try:
+            return WasmModule.from_file(ida_nalt.get_input_file_path())
+        except (OSError, TypeError, ValueError, AttributeError, RuntimeError):
+            return None
+
+    def _wasm_function_addresses(self, module: WasmModule) -> Dict[int, int]:
+        addresses = {}
+        functions = sorted(idautils.Functions())
+        defined = module.defined_function_indices
+        for index, ea in zip(defined, functions):
+            addresses[index] = ea
+        for name, index in module.exports.items():
+            try:
+                ea = idc.get_name_ea_simple(name)
+            except (TypeError, ValueError, AttributeError, RuntimeError):
+                ea = idc.BADADDR
+            if ea != idc.BADADDR:
+                addresses[index] = ea
+        return addresses
+
     def _analyze_wasm(self, func) -> List[Tuple[int, int, str, float]]:
-        """WebAssembly-specific analysis"""
+        module = self._wasm_module()
+        if not module:
+            return []
+        addresses = self._wasm_function_addresses(module)
+        ordinal = sorted(idautils.Functions()).index(func.start_ea)
+        defined = module.defined_function_indices
+        if ordinal >= len(defined):
+            return []
+        function_index = defined[ordinal]
         results = []
-        
-        # WebAssembly has different instruction model
-        # Function calls are via call_indirect instruction
-        
-        for head in idautils.Heads(func.start_ea, func.end_ea):
-            disasm = idc.GetDisasm(head).lower()
-            if "call_indirect" in disasm:
-                table_idx = self._get_wasm_table_index(head)
-                if table_idx is not None:
-                    target = self._resolve_wasm_table_entry(table_idx)
-                    if target:
-                        results.append(self.emit_control_flow(
-                            head, target, "wasm_call_indirect", 0.8, ("wasm",)
-                        ))
-            elif "br_table" in disasm:
-                targets = self._get_wasm_br_table_targets(head)
-                for i, target in enumerate(targets):
+        for instruction in module.instructions(function_index):
+            source = func.start_ea + instruction.offset - module.function_bodies[function_index].code_offset
+            if instruction.opcode == 0x11:
+                target_index = module.table_target(instruction.table_index or 0, instruction.immediate)
+                target = addresses.get(target_index)
+                if target and self.is_valid_reference(target):
+                    results.append(self.emit_control_flow(
+                        source, target, "wasm_call_indirect", 0.8, ("wasm", "static_table_index")
+                    ))
+                elif instruction.immediate is None:
+                    results.append(self.emit_finding(
+                        source, 0, "wasm_call_indirect_dynamic", 0.4, ("wasm", "dynamic_table_index")
+                    ))
+            elif instruction.opcode == 0x0E:
+                for index, target_offset in enumerate(module.branch_targets(function_index).get(instruction.offset, ())):
+                    target = func.start_ea + target_offset - module.function_bodies[function_index].code_offset
                     if self.is_valid_reference(target):
                         results.append(self.emit_control_flow(
-                            head, target, f"wasm_br_table_{i}", 0.85, ("wasm",)
+                            source, target, f"wasm_br_table_{index}", 0.85, ("wasm",)
                         ))
-        
         return results
-    
-    def _get_wasm_table_index(self, ea: int) -> Optional[int]:
-        """Get WebAssembly table index from call_indirect"""
-        # Parse WASM bytecode for table index
-        # Simplified implementation
-        return 0  # Would need proper WASM decoder
-    
-    def _resolve_wasm_table_entry(self, idx: int) -> Optional[int]:
-        """Resolve WebAssembly table entry"""
-        # Would need to parse WASM table section
-        return None
-    
-    def _get_wasm_br_table_targets(self, ea: int) -> List[int]:
-        """Get WebAssembly br_table targets"""
-        # Would need to parse WASM br_table instruction
-        return []
     
     def _analyze_x86(self, func) -> List[Tuple[int, int, str, float]]:
         """x86-specific analysis (32-bit)"""

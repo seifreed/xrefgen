@@ -76,7 +76,7 @@
         },
         "architecture": {
             "enabled": true,
-            "architectures": ["x86", "x64", "arm", "arm64", "mips"]
+            "architectures": ["x86", "x64", "arm", "arm64", "mips", "wasm"]
         },
         "graph": {
             "enabled": true,
