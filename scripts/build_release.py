@@ -25,6 +25,7 @@ FILES = (
     "scripts/run_corpus_matrix.py",
     "scripts/ida_corpus_tests.py",
     "scripts/verify_incremental_equivalence.py",
+    "scripts/verify_incremental_reopen.py",
     "scripts/ida_real_tests.py",
     "scripts/install_ida.py",
 )
