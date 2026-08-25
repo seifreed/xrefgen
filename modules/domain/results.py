@@ -4,35 +4,6 @@ from dataclasses import dataclass, field
 from typing import Any, Callable, Dict, Iterable, List, Optional, Tuple, Union
 
 
-CONTROL_FLOW_TYPES = frozenset(
-    {
-        "indirect_call",
-        "indirect_jump",
-        "call_edge",
-        "callback_arg",
-        "wrapper_call",
-        "trampoline",
-        "mips_jalr",
-        "mips_jr",
-        "bal",
-        "mips_plt_call",
-        "wasm_call_indirect",
-        "x86_fastcall",
-        "x86_thiscall",
-        "x64_convention_call",
-        "x64_rip_relative",
-        "arm64_blr",
-        "arm64_br",
-        "arm_blx_indirect",
-        "arm_bx_indirect",
-        "arm_ldr_pc_call",
-        "arm_vtable_call",
-        "arm64_brx",
-        "return_value_call",
-        "tainted_indirect_call",
-    }
-)
-
 CONTROL_FLOW_MNEMONICS = frozenset(
     {
         "call", "bl", "blx", "jal", "jalr", "bal", "jmp", "b", "br", "blr",
