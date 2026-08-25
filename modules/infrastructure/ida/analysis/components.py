@@ -531,17 +531,15 @@ class RegisterForwardTracker:
                         if mnem in ["call", "jmp"] and i == 0:
                             target = self.a._resolve_register_value(ea, reg)
                             if target and self.a.is_valid_reference(target):
-                                self.a.add_xref(
-                                    ea, target, "tainted_indirect_call", 0.8
-                                )
-                                results.append((ea, target, "tainted_indirect_call", 0.8))
+                                results.append(self.a.emit_control_flow(
+                                    ea, target, "tainted_indirect_call", 0.8, ("taint",)
+                                ))
                             if self.a.jump_table_taint:
                                 for tgt in self.a._resolve_switch_targets(ea, func):
                                     if self.a.is_valid_reference(tgt):
-                                        self.a.add_xref(
-                                            ea, tgt, "tainted_indirect_call", 0.7
-                                        )
-                                        results.append((ea, tgt, "tainted_indirect_call", 0.7))
+                                        results.append(self.a.emit_control_flow(
+                                            ea, tgt, "tainted_indirect_call", 0.7, ("jump_table",)
+                                        ))
                         break
             ea = idc.next_head(ea)
             depth += 1

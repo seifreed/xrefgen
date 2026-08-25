@@ -64,12 +64,9 @@ class CallbackResolver:
                 cb = self._resolve_recent_reg_imm(head, cb_reg)
                 if cb and self.a.is_valid_reference(cb):
                     conf = self.a.confidence("callback_arg")
-                    self.a.add_xref(head, cb, "callback_arg", conf)
-                    try:
-                        self.a.add_evidence(head, cb, "callback")
-                    except (TypeError, ValueError, AttributeError, RuntimeError):
-                        pass
-                    results.append((head, cb, "callback_arg", conf))
+                    results.append(self.a.emit_control_flow(
+                        head, cb, "callback_arg", conf, ("callback",)
+                    ))
         return results
 
     def _resolve_recent_reg_imm(self, call_ea: int, reg: str) -> Optional[int]:

@@ -111,8 +111,9 @@ class CrossArchAnalyzer(IncrementalAnalyzer):
                     # BLX register - indirect call
                     target = self._resolve_arm_register(head)
                     if target and self.is_valid_reference(target):
-                        self.add_xref(head, target, "arm_blx_indirect", 0.85)
-                        refs.append((head, target, "arm_blx_indirect", 0.85))
+                        refs.append(self.emit_control_flow(
+                            head, target, "arm_blx_indirect", 0.85, ("arm",)
+                        ))
                         
             elif mnem == "BX":
                 # Branch and exchange (indirect jump)
@@ -120,8 +121,9 @@ class CrossArchAnalyzer(IncrementalAnalyzer):
                 if op_type == idc.o_reg:
                     target = self._resolve_arm_register(head)
                     if target and self.is_valid_reference(target):
-                        self.add_xref(head, target, "arm_bx_indirect", 0.85)
-                        refs.append((head, target, "arm_bx_indirect", 0.85))
+                        refs.append(self.emit_control_flow(
+                            head, target, "arm_bx_indirect", 0.85, ("arm",)
+                        ))
                         
             elif mnem == "LDR":
                 # Load register - check for function pointer loads
@@ -134,8 +136,9 @@ class CrossArchAnalyzer(IncrementalAnalyzer):
                         if next_ea != idc.BADADDR:
                             next_mnem = idc.print_insn_mnem(next_ea).upper()
                             if next_mnem in ["BLX", "BX"]:
-                                self.add_xref(next_ea, target, "arm_ldr_pc_call", 0.8)
-                                refs.append((next_ea, target, "arm_ldr_pc_call", 0.8))
+                                refs.append(self.emit_control_flow(
+                                    next_ea, target, "arm_ldr_pc_call", 0.8, ("arm",)
+                                ))
         
         return refs
     
@@ -218,8 +221,9 @@ class CrossArchAnalyzer(IncrementalAnalyzer):
                             # Try to resolve vtable entry
                             vtable_entry = self._resolve_arm_vtable_entry(head)
                             if vtable_entry:
-                                self.add_xref(next_ea, vtable_entry, "arm_vtable_call", 0.75)
-                                refs.append((next_ea, vtable_entry, "arm_vtable_call", 0.75))
+                                refs.append(self.emit_control_flow(
+                                    next_ea, vtable_entry, "arm_vtable_call", 0.75, ("vtable",)
+                                ))
                             break
         
         return refs
@@ -279,8 +283,9 @@ class CrossArchAnalyzer(IncrementalAnalyzer):
                         # Calculate target
                         target = head + 4 + (offset * 2)  # Thumb mode
                         if self.is_valid_reference(target) and func.start_ea <= target < func.end_ea:
-                            self.add_xref(head, target, f"arm_switch_case_{i}", 0.9)
-                            refs.append((head, target, f"arm_switch_case_{i}", 0.9))
+                            refs.append(self.emit_control_flow(
+                                head, target, f"arm_switch_case_{i}", 0.9, ("switch",)
+                            ))
         
         return refs
     
@@ -304,8 +309,9 @@ class CrossArchAnalyzer(IncrementalAnalyzer):
                     target = self._resolve_arm64_register(head)
                     if target and self.is_valid_reference(target):
                         xref_type = "arm64_blr" if mnem == "blr" else "arm64_br"
-                        self.add_xref(head, target, xref_type, 0.85)
-                        results.append((head, target, xref_type, 0.85))
+                        results.append(self.emit_control_flow(
+                            head, target, xref_type, 0.85, ("arm64",)
+                        ))
         
         return results
     
@@ -346,11 +352,14 @@ class CrossArchAnalyzer(IncrementalAnalyzer):
                 if op_type == idc.o_reg:
                     target = self._resolve_mips_register(head)
                     if target and self.is_valid_reference(target):
-                        self.add_xref(head, target, "mips_jalr", 0.85)
-                        results.append((head, target, "mips_jalr", 0.85))
+                        results.append(self.emit_control_flow(
+                            head, target, "mips_jalr", 0.85, ("mips",)
+                        ))
                     delay_slot = idc.next_head(head)
                     if target and self.is_valid_reference(target) and delay_slot != idc.BADADDR:
-                        self.add_xref(delay_slot, target, "mips_delay_slot", 0.7)
+                        results.append(self.emit_finding(
+                            delay_slot, target, "mips_delay_slot", 0.7, ("mips",)
+                        ))
             elif mnem == "jr":
                 op_type = idc.get_operand_type(head, 0)
                 if op_type == idc.o_reg:
@@ -358,20 +367,23 @@ class CrossArchAnalyzer(IncrementalAnalyzer):
                     if reg_name != "$ra":
                         target = self._resolve_mips_register(head)
                         if target and self.is_valid_reference(target):
-                            self.add_xref(head, target, "mips_jr", 0.85)
-                            results.append((head, target, "mips_jr", 0.85))
+                            results.append(self.emit_control_flow(
+                                head, target, "mips_jr", 0.85, ("mips",)
+                            ))
             elif mnem in ["lw", "la"]:
                 if self._is_mips_got_access(head):
                     target = self._resolve_mips_got_entry(head)
                     if target:
-                        self.add_xref(head, target, "mips_got_ref", 0.8)
-                        results.append((head, target, "mips_got_ref", 0.8))
+                        results.append(self.emit_finding(
+                            head, target, "mips_got_ref", 0.8, ("mips",)
+                        ))
             elif mnem in ["jal", "jalr"]:
                 # Prefer PLT calls if in .plt
                 target = idc.get_operand_value(head, 0)
                 if self._is_plt_address(target):
-                    self.add_xref(head, target, "mips_plt_call", 0.7)
-                    results.append((head, target, "mips_plt_call", 0.7))
+                    results.append(self.emit_control_flow(
+                        head, target, "mips_plt_call", 0.7, ("mips",)
+                    ))
         
         return results
     
@@ -451,14 +463,16 @@ class CrossArchAnalyzer(IncrementalAnalyzer):
                 if table_idx is not None:
                     target = self._resolve_wasm_table_entry(table_idx)
                     if target:
-                        self.add_xref(head, target, "wasm_call_indirect", 0.8)
-                        results.append((head, target, "wasm_call_indirect", 0.8))
+                        results.append(self.emit_control_flow(
+                            head, target, "wasm_call_indirect", 0.8, ("wasm",)
+                        ))
             elif "br_table" in disasm:
                 targets = self._get_wasm_br_table_targets(head)
                 for i, target in enumerate(targets):
                     if self.is_valid_reference(target):
-                        self.add_xref(head, target, f"wasm_br_table_{i}", 0.85)
-                        results.append((head, target, f"wasm_br_table_{i}", 0.85))
+                        results.append(self.emit_control_flow(
+                            head, target, f"wasm_br_table_{i}", 0.85, ("wasm",)
+                        ))
         
         return results
     
@@ -487,13 +501,15 @@ class CrossArchAnalyzer(IncrementalAnalyzer):
                 if self._is_x86_thiscall(head):
                     target = self._resolve_x86_thiscall(head)
                     if target:
-                        self.add_xref(head, target, "x86_thiscall", 0.8)
-                        results.append((head, target, "x86_thiscall", 0.8))
+                        results.append(self.emit_control_flow(
+                            head, target, "x86_thiscall", 0.8, ("x86",)
+                        ))
                 elif self._is_x86_fastcall(head):
                     target = idc.get_operand_value(head, 0)
                     if self.is_valid_reference(target):
-                        self.add_xref(head, target, "x86_fastcall", 0.85)
-                        results.append((head, target, "x86_fastcall", 0.85))
+                        results.append(self.emit_control_flow(
+                            head, target, "x86_fastcall", 0.85, ("x86",)
+                        ))
         
         return results
     
@@ -538,16 +554,18 @@ class CrossArchAnalyzer(IncrementalAnalyzer):
                 if is_rip_relative(op_str):
                     target = self._resolve_rip_relative(head)
                     if target:
-                        self.add_xref(head, target, "x64_rip_relative", 0.9)
-                        results.append((head, target, "x64_rip_relative", 0.9))
+                        results.append(self.emit_control_flow(
+                            head, target, "x64_rip_relative", 0.9, ("x64",)
+                        ))
             if mnem in ["call", "jmp"]:
                 if self._uses_x64_calling_convention(head):
                     op_type = idc.get_operand_type(head, 0)
                     if op_type == idc.o_reg:
                         target = self._resolve_x64_register(head)
                         if target:
-                            self.add_xref(head, target, "x64_convention_call", 0.85)
-                            results.append((head, target, "x64_convention_call", 0.85))
+                            results.append(self.emit_control_flow(
+                                head, target, "x64_convention_call", 0.85, ("x64",)
+                            ))
         
         return results
     

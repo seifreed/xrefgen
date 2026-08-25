@@ -746,8 +746,9 @@ class DataFlowAnalyzer(IncrementalAnalyzer):
                 ret_usage = self._check_return_value_usage(xref.frm, func_ea)
                 if ret_usage:
                     source, target, confidence = ret_usage
-                    self.add_xref(source, target, "return_value_call", confidence)
-                    results.append((source, target, "return_value_call", confidence))
+                    results.append(self.emit_control_flow(
+                        source, target, "return_value_call", confidence, ("return_value",)
+                    ))
         return results
 
     def _emit_pointer_chain_results(
@@ -756,8 +757,9 @@ class DataFlowAnalyzer(IncrementalAnalyzer):
         results = []
         for source, target, depth in pointer_chains:
             confidence = max(0.5, 1.0 - (depth * 0.1))
-            self.add_xref(source, target, f"pointer_chain_depth_{depth}", confidence)
-            results.append((source, target, f"pointer_chain_depth_{depth}", confidence))
+            results.append(self.emit_finding(
+                source, target, f"pointer_chain_depth_{depth}", confidence, ("pointer_chain",)
+            ))
         return results
 
     def _trace_pointer_chain(self, start_ea: int, end_ea: int) -> List[int]:
@@ -1070,12 +1072,13 @@ class DataFlowAnalyzer(IncrementalAnalyzer):
         for _reg, (src, conf) in regs.items():
             for tgt in self._resolve_switch_targets(jmp_ea, func):
                 if self.is_valid_reference(tgt):
-                    self.add_xref(
-                        jmp_ea, tgt, "tainted_indirect_call", max(0.5, conf * 0.85)
-                    )
-                    results.append(
-                        (jmp_ea, tgt, "tainted_indirect_call", max(0.5, conf * 0.85))
-                    )
+                    results.append(self.emit_control_flow(
+                        jmp_ea,
+                        tgt,
+                        "tainted_indirect_call",
+                        max(0.5, conf * 0.85),
+                        ("jump_table",),
+                    ))
         self._pending_control_flow_results.extend(results)
         return results
 

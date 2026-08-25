@@ -394,8 +394,9 @@ class GraphAnalyzer(IncrementalAnalyzer):
                     break
             if target and self.is_valid_reference(target):
                 conf = self.confidence("trampoline")
-                self.add_xref(head, target, "trampoline", conf)
-                results.append((head, target, "trampoline", conf))
+                results.append(self.emit_control_flow(
+                    head, target, "trampoline", conf, ("trampoline",)
+                ))
         return results
 
     def _detect_compiler_profile(self) -> str:
