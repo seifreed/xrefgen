@@ -32,6 +32,7 @@ jobs:
               "xrefgen/scripts/build_corpus.py",
               "xrefgen/scripts/run_corpus_matrix.py",
               "xrefgen/scripts/ida_corpus_tests.py",
+              "xrefgen/scripts/verify_incremental_equivalence.py",
               "xrefgen/scripts/ida_real_tests.py",
               "xrefgen/scripts/install_ida.py",
           }
