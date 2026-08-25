@@ -54,10 +54,6 @@ class XrefCandidate:
     module: str = ""
     evidence: Tuple[str, ...] = ()
 
-    def __iter__(self):
-        return iter((self.source, self.target, self.kind, self.confidence))
-
-
 @dataclass(frozen=True)
 class Finding:
     source: int
@@ -67,10 +63,6 @@ class Finding:
     module: str = ""
     evidence: Tuple[str, ...] = ()
 
-    def __iter__(self):
-        return iter((self.source, self.target, self.kind, self.confidence))
-
-
 @dataclass(frozen=True)
 class Relationship:
     source: int
@@ -79,10 +71,6 @@ class Relationship:
     confidence: float
     module: str = ""
     evidence: Tuple[str, ...] = ()
-
-    def __iter__(self):
-        return iter((self.source, self.target, self.kind, self.confidence))
-
 
 AnalysisResult = Union[XrefCandidate, Finding, Relationship]
 RESULT_TYPES = (XrefCandidate, Finding, Relationship)

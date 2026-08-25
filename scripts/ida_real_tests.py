@@ -42,8 +42,8 @@ for res in results_by_module.values():
     all_results.extend(res)
 
 for item in all_results:
-    if not (isinstance(item, RESULT_TYPES) or (isinstance(item, tuple) and len(item) == 4)):
-        raise ValueError(f"Invalid xref structure: expected 4-tuple, got {item}")
+    if not isinstance(item, RESULT_TYPES):
+        raise ValueError(f"Invalid analysis result: expected typed result, got {item}")
 
 store = ResultStore(
     source_is_control_flow=lambda ea: is_control_flow_mnemonic(idc.print_insn_mnem(ea)),

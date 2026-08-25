@@ -61,16 +61,6 @@ class IDAXrefAnalyzer(XrefAnalyzer):
         self._valid_ref_cache.clear()
         self._func_bounds.refresh()
 
-    def add_xref(self, source: int, target: int, xref_type: str, confidence: float = 1.0):
-        """Add xref with IDA validation + dedup against existing IDA xrefs."""
-        valid = self.is_valid_reference(target)
-        if not valid:
-            return False
-        if self._is_already_in_ida(source, target):
-            return False
-        super().add_xref(source, target, xref_type, confidence)
-        return True
-
     def combine_confidence(self, source_conf: float, target_conf: float) -> float:
         """Combine source/target confidence into a final score."""
         try:

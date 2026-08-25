@@ -1,7 +1,8 @@
 """Application layer: module orchestration (IDA-agnostic)."""
 
-from typing import Dict, List, Tuple, Any
+from typing import Any, Dict, List
 from modules.domain.analyzer import XrefAnalyzer
+from modules.domain.results import AnalysisResult, RESULT_TYPES
 
 
 class ModuleManager:
@@ -10,8 +11,8 @@ class ModuleManager:
     def __init__(self, config: Dict[str, Any] = None):
         self.config = config or {}
         self.modules: List[XrefAnalyzer] = []
-        self.results: List[Tuple[int, int, str, float]] = []
-        self.results_by_module: Dict[str, List[Tuple[int, int, str, float]]] = {}
+        self.results: List[AnalysisResult] = []
+        self.results_by_module: Dict[str, List[AnalysisResult]] = {}
 
     def register_module(self, module: XrefAnalyzer):
         """Register an analysis module."""
@@ -21,7 +22,7 @@ class ModuleManager:
 
     def run_analysis(
         self, selected_modules: List[str] = None
-    ) -> List[Tuple[int, int, str, float]]:
+    ) -> List[AnalysisResult]:
         """Run analysis on all or selected modules."""
         self.results = []
         self.results_by_module = {}
@@ -33,6 +34,10 @@ class ModuleManager:
             print(f"[XrefGen] Running {module.get_name()}...")
             try:
                 module_results = module.analyze()
+                if any(not isinstance(result, RESULT_TYPES) for result in module_results):
+                    raise TypeError(
+                        f"{module.get_name()} returned an untyped analysis result"
+                    )
                 self.results_by_module[module.get_name()] = module_results
                 self.results.extend(module_results)
                 print(
@@ -46,10 +51,6 @@ class ModuleManager:
 
     def get_filtered_results(
         self, min_confidence: float = 0.5
-    ) -> List[Tuple[int, int, str, float]]:
+    ) -> List[AnalysisResult]:
         """Get results filtered by confidence score."""
-        return [
-            (s, t, typ, conf)
-            for s, t, typ, conf in self.results
-            if conf >= min_confidence
-        ]
+        return [result for result in self.results if result.confidence >= min_confidence]

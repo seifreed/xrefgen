@@ -180,11 +180,13 @@ class XrefGen:
         )
         for module_name, module_results in raw_results_by_module.items():
             for result in module_results:
-                if isinstance(result, RESULT_TYPES):
-                    result_store.add_result(result, module=module_name, evidence=(module_name,))
-                    continue
-                source, target, kind, confidence = result
-                result_store.add(source, target, kind, confidence, module=module_name, evidence=(module_name,))
+                if not isinstance(result, RESULT_TYPES):
+                    raise TypeError(
+                        f"{module_name} returned an untyped analysis result: {result!r}"
+                    )
+                result_store.add_result(
+                    result, module=module_name, evidence=(module_name,)
+                )
 
         # Export only validated control-flow candidates.
         min_confidence = self.config.get("general.min_confidence", 0.5)
@@ -198,8 +200,11 @@ class XrefGen:
         try:
             if self.config.get("modules.performance.enabled"):
                 for mod_name, mod_results in results_by_module.items():
-                    for s, t, _typ, _conf in mod_results:
-                        evidence_types.setdefault((s, t), set()).add(mod_name)
+                    for result in mod_results:
+                        if isinstance(result, RESULT_TYPES):
+                            evidence_types.setdefault(
+                                (result.source, result.target), set()
+                            ).add(mod_name)
             evidence_types.update(result_store.evidence())
             for module in self.manager.modules:
                 counts = getattr(module, "evidence_counts", None)
