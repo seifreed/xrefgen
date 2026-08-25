@@ -176,7 +176,7 @@ class Config:
                 "call_chain_min_length": 2,
             },
             "similarity": {
-                "enabled": False,
+                "enabled": True,
                 "similarity_threshold": 0.85,
                 "max_functions": 1000,
             },
@@ -191,7 +191,7 @@ class Config:
                 "skip_slow_graph": False,
             },
             "ida_features": {
-                "enabled": False,
+                "enabled": True,
                 "use_lumina": False,
                 "use_microcode": True,
                 "use_type_libraries": True,

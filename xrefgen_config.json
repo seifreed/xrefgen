@@ -118,7 +118,7 @@
             "call_chain_min_length": 2
         },
         "similarity": {
-            "enabled": false,
+            "enabled": true,
             "similarity_threshold": 0.85,
             "max_functions": 1000
         },
@@ -133,7 +133,7 @@
             "skip_slow_graph": false
         },
         "ida_features": {
-            "enabled": false,
+            "enabled": true,
             "use_lumina": false,
             "use_microcode": true,
             "use_type_libraries": true

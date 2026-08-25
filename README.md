@@ -168,9 +168,10 @@ python scripts/build_corpus.py --output build/corpus
 The builder records real compiler outputs and skips unavailable optional
 toolchains; use `--strict` when every manifest entry is required.
 
-Similarity relationships use deterministic mnemonic signatures and remain
-disabled by default. Interactive preview is intentionally not registered
-until it can consume and confirm the typed result stream.
+Similarity relationships use deterministic mnemonic signatures. IDA feature
+evidence uses available type information and Hex-Rays ctree calls; it degrades
+cleanly when Hex-Rays is unavailable. The plugin menu provides full,
+incremental, module-selection, configuration, cache, and statistics actions.
 The repository includes `tests/fixtures/ground_truth.example.json` as the
 expected-file format; it is not a claim about a real binary.
 
