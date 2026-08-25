@@ -184,6 +184,9 @@ python scripts/run_corpus_matrix.py --corpus /path/to/corpus/dist \
   --target ida-9.3-macos --strict
 ```
 
+The runner writes `matrix-report.json` and `matrix-summary.json`; the latter
+contains aggregate precision, recall, and TP/FP/FN counts.
+
 For persisted incremental DataFlow checks over multiple binaries, use
 `scripts/run_incremental_reopen_matrix.py` with `--expect-nonempty` when the
 fixture must produce semantic results.

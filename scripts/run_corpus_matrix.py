@@ -27,6 +27,7 @@ def _run_target(target, manifest, corpus_root, script, strict):
             artifact["fixture"] + "-" + artifact["variant"] + ".json"
         )
         actual.parent.mkdir(parents=True, exist_ok=True)
+        metrics = actual.with_name(actual.stem + ".metrics.json")
         expected = corpus_root / artifact["ground_truth"]
         if not expected.is_file():
             expected = ROOT / "tests" / "fixtures" / "corpus" / artifact["ground_truth"]
@@ -35,6 +36,7 @@ def _run_target(target, manifest, corpus_root, script, strict):
             "XREFGEN_ROOT": str(ROOT),
             "XREFGEN_EXPECTED_JSON": str(expected),
             "XREFGEN_CORPUS_ACTUAL": str(actual),
+            "XREFGEN_CORPUS_METRICS": str(metrics),
         })
         binary = corpus_root / artifact["path"]
         for suffix in (".i64", ".id0", ".id1", ".id2", ".nam", ".til"):
@@ -57,6 +59,8 @@ def _run_target(target, manifest, corpus_root, script, strict):
             "stderr": completed.stderr[-4000:],
         }
         if actual.exists():
+            if metrics.exists():
+                report.update(json.loads(metrics.read_text(encoding="utf-8")))
             expected_payload = json.loads(expected.read_text(encoding="utf-8"))
             if expected_payload.get("expected_symbols"):
                 report["ground_truth_mode"] = "symbolic_ida"
@@ -72,6 +76,34 @@ def _run_target(target, manifest, corpus_root, script, strict):
                 f"{target['id']} failed on {artifact['fixture']}/{artifact['variant']}"
             )
     return reports
+
+
+def _summary(reports):
+    completed = [report for report in reports if "fixture" in report]
+    symbolic = [
+        report for report in completed if report.get("ground_truth_mode") == "symbolic_ida"
+    ]
+    explicit = [report for report in completed if "precision" in report]
+    true_positives = sum(len(report.get("true_positives", ())) for report in completed)
+    false_positives = sum(len(report.get("false_positives", ())) for report in completed)
+    false_negatives = sum(len(report.get("false_negatives", ())) for report in completed)
+    actual = true_positives + false_positives
+    expected = true_positives + false_negatives
+    return {
+        "version": 1,
+        "runs": len(reports),
+        "completed_runs": len(completed),
+        "missing_targets": sum(report.get("status") == "missing_executable" for report in reports),
+        "failed_runs": sum(report.get("returncode", 0) != 0 for report in completed),
+        "symbolic_runs": len(symbolic),
+        "symbolic_validated": sum(report.get("validated_by_ida", False) for report in symbolic),
+        "explicit_runs": len(explicit),
+        "true_positives": true_positives,
+        "false_positives": false_positives,
+        "false_negatives": false_negatives,
+        "precision": true_positives / actual if actual else 1.0,
+        "recall": true_positives / expected if expected else 1.0,
+    }
 
 
 def run(corpus_root, matrix_path, strict=False, target_ids=None):
@@ -90,6 +122,10 @@ def run(corpus_root, matrix_path, strict=False, target_ids=None):
         reports.extend(_run_target(target, manifest, corpus_root, script, strict))
     output = corpus_root / "matrix-report.json"
     output.write_text(json.dumps(reports, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    (corpus_root / "matrix-summary.json").write_text(
+        json.dumps(_summary(reports), indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
     return reports
 
 
@@ -101,7 +137,10 @@ if __name__ == "__main__":
     parser.add_argument("--strict", action="store_true")
     args = parser.parse_args()
     reports = run(args.corpus, args.matrix, args.strict, set(args.targets or ()))
-    missing = sum(report.get("status") == "missing_executable" for report in reports)
-    failures = sum(report.get("returncode", 0) != 0 for report in reports)
-    print(json.dumps({"runs": len(reports), "missing": missing, "failures": failures}))
-    raise SystemExit(1 if failures or (args.strict and missing) else 0)
+    summary = _summary(reports)
+    print(json.dumps(summary, sort_keys=True))
+    raise SystemExit(
+        1
+        if summary["failed_runs"] or (args.strict and summary["missing_targets"])
+        else 0
+    )

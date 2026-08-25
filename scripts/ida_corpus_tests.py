@@ -161,6 +161,10 @@ def run(expected_path):
                 handle,
                 indent=2,
             )
+    metrics_path = os.environ.get("XREFGEN_CORPUS_METRICS")
+    if metrics_path:
+        with open(metrics_path, "w", encoding="utf-8") as handle:
+            json.dump(report, handle, indent=2, sort_keys=True)
     print(json.dumps(report, indent=2))
     if false_negatives or report["forbidden_emitted"] or false_positives:
         raise SystemExit(1)
