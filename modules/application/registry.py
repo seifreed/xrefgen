@@ -29,21 +29,15 @@ DEFAULT_REGISTRY: Tuple[ModuleSpec, ...] = (
     ),
     ModuleSpec("graph", "modules.infrastructure.ida.graph.analyzer", "GraphAnalyzer"),
     ModuleSpec(
-        "ml",
+        "similarity",
         "modules.infrastructure.ida.ml.similarity",
-        "MLSimilarityAnalyzer",
+        "SimilarityAnalyzer",
         optional=True,
     ),
     ModuleSpec(
         "ida_features",
         "modules.infrastructure.ida.ida_features.ida91",
         "IDA91Analyzer",
-        optional=True,
-    ),
-    ModuleSpec(
-        "interactive",
-        "modules.infrastructure.ida.interactive.preview",
-        "InteractiveAnalyzer",
         optional=True,
     ),
 )

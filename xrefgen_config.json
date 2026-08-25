@@ -117,11 +117,9 @@
             "call_chain_decay": 0.98,
             "call_chain_min_length": 2
         },
-        "ml": {
+        "similarity": {
             "enabled": false,
-            "model_path": null,
             "similarity_threshold": 0.85,
-            "use_embeddings": false,
             "max_functions": 1000
         },
         "performance": {
@@ -139,11 +137,6 @@
             "use_lumina": false,
             "use_microcode": true,
             "use_type_libraries": true
-        },
-        "interactive": {
-            "enabled": false,
-            "preview_mode": true,
-            "custom_filters": []
         }
     },
     "filters": {

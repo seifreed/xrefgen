@@ -175,11 +175,9 @@ class Config:
                 "call_chain_decay": 0.98,
                 "call_chain_min_length": 2,
             },
-            "ml": {
+            "similarity": {
                 "enabled": False,
-                "model_path": None,
                 "similarity_threshold": 0.85,
-                "use_embeddings": False,
                 "max_functions": 1000,
             },
             "performance": {
@@ -197,11 +195,6 @@ class Config:
                 "use_lumina": False,
                 "use_microcode": True,
                 "use_type_libraries": True,
-            },
-            "interactive": {
-                "enabled": False,
-                "preview_mode": True,
-                "custom_filters": [],
             },
         },
         "filters": {
@@ -333,11 +326,9 @@ class Config:
                     "call_chain_decay": None,
                     "call_chain_min_length": None,
                 },
-                "ml": {
+                "similarity": {
                     "enabled": None,
-                    "model_path": None,
                     "similarity_threshold": None,
-                    "use_embeddings": None,
                     "max_functions": None,
                 },
                 "performance": {
@@ -355,11 +346,6 @@ class Config:
                     "use_lumina": None,
                     "use_microcode": None,
                     "use_type_libraries": None,
-                },
-                "interactive": {
-                    "enabled": None,
-                    "preview_mode": None,
-                    "custom_filters": None,
                 },
             },
             "filters": {

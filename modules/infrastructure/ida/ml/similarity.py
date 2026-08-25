@@ -1,7 +1,4 @@
-"""
-Machine Learning Integration Module (Placeholder)
-Function similarity detection, anomaly detection, and auto-categorization
-"""
+"""Deterministic function similarity relationships."""
 
 from typing import Dict, List, Tuple, Set
 from modules.infrastructure.ida.base import IDAXrefAnalyzer
@@ -9,50 +6,28 @@ import idautils
 import idc
 
 
-class MLSimilarityAnalyzer(IDAXrefAnalyzer):
-    """ML-based similarity and pattern analysis"""
+class SimilarityAnalyzer(IDAXrefAnalyzer):
+    """Compare instruction-shape signatures without a model dependency."""
 
     def __init__(self, config: Dict = None):
         super().__init__(config)
-        self.model_path = config.get("model_path")
         self.similarity_threshold = config.get("similarity_threshold", 0.85)
-        # Default to False to avoid importing heavy C-extensions inside IDA unless explicitly requested
-        self.use_embeddings = bool(config.get("use_embeddings", False))
-
-        # Only check/import ML deps if embeddings are requested
-        self.ml_available = self._check_ml_dependencies()
+        self.max_functions = int(config.get("max_functions", 1000))
 
     def get_name(self) -> str:
-        return "MLSimilarityAnalyzer"
-
-    def _check_ml_dependencies(self) -> bool:
-        """Check if required ML libraries are available (only when embeddings are used)."""
-        if not self.use_embeddings:
-            return False
-        try:
-            import numpy  # noqa: F401
-            import sklearn  # noqa: F401
-
-            return True
-        except (ImportError, TypeError, ValueError, AttributeError, RuntimeError):
-            # Do not spam UI; embeddings are optional and we have a pure-Python fallback
-            return False
+        return "SimilarityAnalyzer"
 
     def analyze(self) -> List[Tuple[int, int, str, float]]:
-        """Approximate function similarity via mnemonic shingles + Jaccard."""
-        if not self.ml_available and not self.use_embeddings:
-            return []
-
+        """Emit relationship results from mnemonic-set Jaccard similarity."""
         try:
-            results: List[Tuple[int, int, str, float]] = []
-            max_funcs = int(self.config.get("max_functions", 1000))
+            results = []
             threshold = float(self.similarity_threshold)
 
             # Build shingles per function
             func_mnems: Dict[int, Set[str]] = {}
             count = 0
             for func_ea in idautils.Functions():
-                if count >= max_funcs:
+                if count >= self.max_functions:
                     break
                 mnems: Set[str] = set()
                 try:
@@ -104,10 +79,10 @@ class MLSimilarityAnalyzer(IDAXrefAnalyzer):
                     if sim >= threshold:
                         conf = min(0.95, 0.6 + 0.4 * sim)
                         results.append(self.emit_relationship(
-                            a, b, "ml_similarity", conf, ("mnemonic_jaccard",)
+                                a, b, "function_similarity", conf, ("mnemonic_jaccard",)
                         ))
 
             return results
         except (TypeError, ValueError, AttributeError, RuntimeError) as e:
-            print(f"[MLSimilarityAnalyzer] Analysis error: {e}")
+            print(f"[SimilarityAnalyzer] Analysis error: {e}")
             return []

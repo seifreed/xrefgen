@@ -146,54 +146,6 @@ class ResultStore:
         self._finding_keys = set()
         self._relationship_keys = set()
 
-    def add(
-        self,
-        source: int,
-        target: int,
-        kind: str,
-        confidence: float,
-        module: str = "",
-        evidence: Iterable[str] = (),
-    ) -> bool:
-        try:
-            source = int(source)
-            target = int(target)
-            confidence = max(0.0, min(1.0, float(confidence)))
-            kind = str(kind)
-        except (TypeError, ValueError):
-            self._reject(source, target, kind, "invalid_result")
-            return False
-
-        evidence = tuple(sorted(set(evidence or ())))
-        if self._is_control_flow_kind(kind):
-            reason = self._xref_rejection_reason(source, target)
-            if reason:
-                self._reject(source, target, kind, reason)
-                return False
-            key = (source, target)
-            stored = self._xrefs.get(key)
-            if stored is None:
-                self._xrefs[key] = _StoredXref(
-                    source, target, kind, confidence, {kind}, set(evidence)
-                )
-            else:
-                stored.confidence = max(stored.confidence, confidence)
-                stored.kinds.add(kind)
-                stored.evidence.update(evidence)
-            return True
-
-        record = (source, target, kind, confidence, module, evidence)
-        key = (source, target, kind)
-        if kind.startswith(("ml_", "cluster_", "call_chain_", "complex_func_")):
-            if key not in self._relationship_keys:
-                self._relationship_keys.add(key)
-                self.relationships.append(Relationship(*record))
-        else:
-            if key not in self._finding_keys:
-                self._finding_keys.add(key)
-                self.findings.append(Finding(*record))
-        return False
-
     def add_result(
         self,
         result: AnalysisResult,
@@ -301,14 +253,6 @@ class ResultStore:
         if self._already_exists(source, target):
             return "already_in_ida"
         return None
-
-    @staticmethod
-    def _is_control_flow_kind(kind: str) -> bool:
-        return (
-            kind in CONTROL_FLOW_TYPES
-            or kind.startswith("arm_switch_case_")
-            or kind.startswith("wasm_br_table_")
-        )
 
     def _reject(self, source: object, target: object, kind: object, reason: str) -> None:
         self.rejections.append(

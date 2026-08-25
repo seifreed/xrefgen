@@ -14,11 +14,11 @@ def test_result_store_exports_only_valid_control_flow_and_deduplicates():
         target_is_executable=lambda ea: ea == 0x2000,
     )
 
-    assert store.add(0x1000, 0x2000, "indirect_call", 0.7, evidence=("graph",))
-    assert store.add(0x1000, 0x2000, "indirect_call", 0.9, evidence=("dataflow",))
-    assert not store.add(0x3000, 0x4000, "indirect_call", 1.0)
-    assert not store.add(0x1000, 0x2000, "ml_similarity", 1.0)
-    assert not store.add(0x1000, 0x2000, "ml_similarity", 0.8)
+    assert store.add_result(XrefCandidate(0x1000, 0x2000, "indirect_call", 0.7, evidence=("graph",)))
+    assert store.add_result(XrefCandidate(0x1000, 0x2000, "indirect_call", 0.9, evidence=("dataflow",)))
+    assert not store.add_result(XrefCandidate(0x3000, 0x4000, "indirect_call", 1.0))
+    assert not store.add_result(Relationship(0x1000, 0x2000, "function_similarity", 1.0))
+    assert not store.add_result(Relationship(0x1000, 0x2000, "function_similarity", 0.8))
 
     assert store.xrefs() == [(0x1000, 0x2000, "indirect_call", 0.9)]
     assert store.evidence() == {(0x1000, 0x2000): {"graph", "dataflow"}}
@@ -34,8 +34,8 @@ def test_result_store_keeps_multiple_control_flow_types():
         target_is_executable=lambda _ea: True,
     )
 
-    assert store.add(1, 2, "indirect_call", 0.7)
-    assert store.add(1, 2, "callback_arg", 0.8)
+    assert store.add_result(XrefCandidate(1, 2, "indirect_call", 0.7))
+    assert store.add_result(XrefCandidate(1, 2, "callback_arg", 0.8))
     assert store.xref_types() == {(1, 2): {"indirect_call", "callback_arg"}}
     assert store.xrefs() == [(1, 2, "indirect_call", 0.8)]
 

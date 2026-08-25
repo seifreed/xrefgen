@@ -406,12 +406,26 @@ class IDA91Analyzer(IDAXrefAnalyzer):
         return results
 
     def _match_type_libraries(self) -> List[Tuple[int, int, str, float]]:
-        """Match against IDA's type libraries"""
+        """Record functions for which IDA resolved a library-backed type."""
         results = []
-
-        # Placeholder for type library matching
-        # Would use ida_typeinf module
-
+        if ida_typeinf is None:
+            return results
+        for func_ea in idautils.Functions():
+            try:
+                tinfo = ida_typeinf.tinfo_t()
+                if not ida_typeinf.get_tinfo(tinfo, func_ea):
+                    continue
+                type_name = tinfo.get_type_name() if hasattr(tinfo, "get_type_name") else ""
+                if type_name:
+                    results.append(self.emit_finding(
+                        func_ea,
+                        func_ea,
+                        "type_library_match",
+                        0.75,
+                        ("ida_typeinf", type_name),
+                    ))
+            except (TypeError, ValueError, AttributeError, RuntimeError):
+                continue
         return results
 
     def _query_lumina(self) -> List[Tuple[int, int, str, float]]:

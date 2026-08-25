@@ -57,10 +57,7 @@ store = ResultStore(
     ),
 )
 for item in all_results:
-    if isinstance(item, RESULT_TYPES):
-        store.add_result(item)
-    else:
-        store.add(*item)
+    store.add_result(item)
 
 expected_path = os.environ.get("XREFGEN_EXPECTED_JSON")
 if expected_path:

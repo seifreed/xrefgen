@@ -105,10 +105,9 @@ def run(expected_path):
         ),
     )
     for item in all_results:
-        if isinstance(item, RESULT_TYPES):
-            store.add_result(item)
-        else:
-            store.add(*item)
+        if not isinstance(item, RESULT_TYPES):
+            raise ValueError(f"Invalid typed corpus result: {item!r}")
+        store.add_result(item)
 
     actual = {
         (f"0x{source:x}", f"0x{target:x}", kind)

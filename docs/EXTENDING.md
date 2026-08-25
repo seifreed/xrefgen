@@ -31,11 +31,11 @@ Analysis modules should return typed results. Use the emitters from
 ```python
 return [self.emit_control_flow(call_ea, target, "indirect_call", 0.9)]
 return [self.emit_finding(source_ea, target_ea, "taint_flow", 0.7)]
-return [self.emit_relationship(func_a, func_b, "ml_similarity", 0.8)]
+return [self.emit_relationship(func_a, func_b, "function_similarity", 0.8)]
 ```
 
-Legacy four-tuples are still accepted for external modules during the alpha
-period, but new modules should not infer roles from `kind` strings.
+Four-tuples are not accepted. Every module result must be an explicit
+`XrefCandidate`, `Finding`, or `Relationship`.
 
 For incremental analysis, inherit from:
 
