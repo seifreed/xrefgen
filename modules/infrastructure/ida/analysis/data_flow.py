@@ -331,9 +331,7 @@ class DataFlowAnalyzer(IncrementalAnalyzer):
         for key in list(self.taint_kind_xrefs):
             if key[0] == func_ea:
                 self.taint_kind_xrefs.pop(key, None)
-        self._ip_cache = {
-            key for key in self._ip_cache if not key or key[0] != func_ea
-        }
+        self._ip_cache.clear()
         self._pending_control_flow_results = []
 
     def _semantic_snapshot(self, func_ea: int):
@@ -342,7 +340,7 @@ class DataFlowAnalyzer(IncrementalAnalyzer):
     def get_semantic_cache(self, func_ea: int) -> Dict[str, Any]:
         """Return the serializable interprocedural contract of one function."""
         return {
-            "version": 1,
+            "version": 2,
             "dependencies": sorted(self._function_dependencies.get(func_ea, set())),
             "return_values": list(self.return_values.get(func_ea, ())),
             "arg_to_return": sorted(self.taint_summaries.get(func_ea, set())),
@@ -354,24 +352,33 @@ class DataFlowAnalyzer(IncrementalAnalyzer):
         }
 
     def restore_cached_semantic(self, func_ea: int, semantic: Optional[Dict[str, Any]]):
-        if not isinstance(semantic, dict) or semantic.get("version") != 1:
+        if not isinstance(semantic, dict) or semantic.get("version") != 2:
             return
         self._function_dependencies[func_ea] = {
             int(value) for value in semantic.get("dependencies", ())
         }
-        if semantic.get("return_values"):
-            self.return_values[func_ea] = tuple(semantic["return_values"])
+        return_values = tuple(semantic.get("return_values", ()))
+        if return_values:
+            self.return_values[func_ea] = return_values
+        else:
+            self.return_values.pop(func_ea, None)
         arg_to_return = set(semantic.get("arg_to_return", ()))
         if arg_to_return:
             self.taint_summaries[func_ea] = arg_to_return
+        else:
+            self.taint_summaries.pop(func_ea, None)
         arg_to_arg = semantic.get("arg_to_arg", {})
         if arg_to_arg:
             self.taint_summaries_arg[func_ea] = {
                 str(key): set(values) for key, values in arg_to_arg.items()
             }
+        else:
+            self.taint_summaries_arg.pop(func_ea, None)
         arg_to_mem = set(semantic.get("arg_to_mem", ()))
         if arg_to_mem:
             self.taint_summaries_mem[func_ea] = arg_to_mem
+        else:
+            self.taint_summaries_mem.pop(func_ea, None)
 
     def _discover_dependencies(self, func_ea: int):
         func = ida_funcs.get_func(func_ea)
@@ -398,6 +405,7 @@ class DataFlowAnalyzer(IncrementalAnalyzer):
         analysis_cache: Dict[int, Dict[str, Any]],
     ) -> Set[int]:
         """Restore summaries and compute the caller invalidation closure."""
+        self.reset_analysis_state()
         self._incremental_functions = set(all_functions)
         for func_ea, modules in analysis_cache.items():
             entry = modules.get(self.get_name(), {}) if isinstance(modules, dict) else {}
@@ -1002,7 +1010,7 @@ class DataFlowAnalyzer(IncrementalAnalyzer):
         tainted_args = tuple(
             reg for reg in arg_regs if reg in self.tainted_regs.get(caller_func_ea, {})
         )
-        cache_key = (callee_ea, depth, tainted_args)
+        cache_key = (caller_func_ea, callee_ea, depth, tainted_args)
         if cache_key in self._ip_cache:
             return
         self._ip_cache.add(cache_key)
