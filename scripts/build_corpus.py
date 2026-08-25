@@ -63,7 +63,21 @@ def build_fixture(fixture, output_root, variants, report=None):
         output = output_dir / f"{fixture['name']}{suffix}"
         command = _command(fixture, source, output, variant, compiler)
         print("BUILD", fixture["name"], variant)
-        subprocess.run(command, check=True)
+        try:
+            subprocess.run(command, check=True)
+        except subprocess.CalledProcessError as error:
+            if fixture.get("target") and not fixture.get("required"):
+                message = (
+                    f"SKIP {fixture['name']}: target toolchain unavailable "
+                    f"({error})"
+                )
+                print(message)
+                if report is not None:
+                    report["skipped"].append(
+                        {"fixture": fixture["name"], "reason": message}
+                    )
+                return built
+            raise
         built += 1
         if report is not None:
             report["artifacts"].append({
