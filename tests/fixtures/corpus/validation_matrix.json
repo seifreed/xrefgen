@@ -25,6 +25,12 @@
       "executable_env": "XREFGEN_IDA_9_2_MACOS"
     },
     {
+      "id": "ida-9.3-macos",
+      "version": "9.3",
+      "platform": "macos",
+      "executable_env": "XREFGEN_IDA_9_3_MACOS"
+    },
+    {
       "id": "ida-9.2-windows",
       "version": "9.2",
       "platform": "windows",
