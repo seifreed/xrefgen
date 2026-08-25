@@ -14,6 +14,7 @@ CONTROL_FLOW_TYPES = frozenset(
         "trampoline",
         "mips_jalr",
         "mips_jr",
+        "bal",
         "mips_plt_call",
         "wasm_call_indirect",
         "x86_fastcall",

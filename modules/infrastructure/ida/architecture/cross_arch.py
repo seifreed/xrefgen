@@ -363,6 +363,10 @@ class CrossArchAnalyzer(IncrementalAnalyzer):
                         results.append(self.emit_finding(
                             delay_slot, target, "mips_delay_slot", 0.7, ("mips",)
                         ))
+                    if target and self._is_plt_address(target):
+                        results.append(self.emit_control_flow(
+                            head, target, "mips_plt_call", 0.7, ("mips",)
+                        ))
             elif mnem == "jr":
                 op_type = idc.get_operand_type(head, 0)
                 if op_type == idc.o_reg:
@@ -380,7 +384,7 @@ class CrossArchAnalyzer(IncrementalAnalyzer):
                         results.append(self.emit_finding(
                             head, target, "mips_got_ref", 0.8, ("mips",)
                         ))
-            elif mnem in ["jal", "jalr"]:
+            elif mnem == "jal":
                 # Prefer PLT calls if in .plt
                 target = idc.get_operand_value(head, 0)
                 if self._is_plt_address(target):
