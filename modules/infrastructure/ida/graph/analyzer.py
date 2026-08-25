@@ -263,8 +263,19 @@ class GraphAnalyzer(IncrementalAnalyzer):
         op_type = idc.get_operand_type(call_ea, 0)
         
         if op_type == idc.o_near:
-            # Direct call
-            candidates.append((idc.get_operand_value(call_ea, 0), self.indirect_direct_confidence, "direct"))
+            # IDA can expose the fallthrough as operand_value for unresolved
+            # ARM branches. Only trust code refs first, then use the operand
+            # value when it is not the fallthrough.
+            direct_targets = list(getattr(idautils, "CodeRefsFrom", lambda *_: ())(
+                call_ea, False
+            ))
+            if not direct_targets:
+                target = idc.get_operand_value(call_ea, 0)
+                fallthrough = idc.next_head(call_ea)
+                if target not in (idc.BADADDR, fallthrough):
+                    direct_targets = [target]
+            for target in direct_targets:
+                candidates.append((target, self.indirect_direct_confidence, "direct"))
         elif op_type in [idc.o_reg, idc.o_mem, idc.o_displ]:
             if call_ea in self._indirect_cache:
                 for target, conf in self._indirect_cache[call_ea]:

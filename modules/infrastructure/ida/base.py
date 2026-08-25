@@ -28,6 +28,8 @@ class IDAXrefAnalyzer(XrefAnalyzer):
 
     def _is_valid_reference(self, target: int) -> bool:
         try:
+            if not isinstance(target, int) or target <= 0 or target == idc.BADADDR:
+                return False
             seg = ida_segment.getseg(target)
             if not seg:
                 return False
