@@ -43,13 +43,15 @@ def _command(fixture, source, output, variant, compiler):
     raise ValueError(f"unsupported corpus language: {language}")
 
 
-def build_fixture(fixture, output_root, variants):
+def build_fixture(fixture, output_root, variants, report=None):
     compiler = _toolchain(fixture["language"])
     if not compiler:
         message = f"SKIP {fixture['name']}: {fixture['language']} toolchain unavailable"
         if fixture.get("required"):
             raise RuntimeError(message)
         print(message)
+        if report is not None:
+            report["skipped"].append({"fixture": fixture["name"], "reason": message})
         return 0
 
     source = CORPUS / fixture["source"]
@@ -63,12 +65,23 @@ def build_fixture(fixture, output_root, variants):
         print("BUILD", fixture["name"], variant)
         subprocess.run(command, check=True)
         built += 1
+        if report is not None:
+            report["artifacts"].append({
+                "fixture": fixture["name"],
+                "variant": variant,
+                "path": str(output.relative_to(output_root)),
+                "ground_truth": fixture.get(
+                    "ground_truth", "negative_no_new_xrefs.ground_truth.json"
+                ),
+                "target": fixture.get("target"),
+            })
     return built
 
 
 def build(output_root, selected=None, strict=False):
     manifest = json.loads(MANIFEST.read_text(encoding="utf-8"))
     variants = manifest.get("variants", ["O0", "O1", "O2", "O3"])
+    report = {"version": 1, "source_manifest": str(MANIFEST), "artifacts": [], "skipped": []}
     total = 0
     for fixture in manifest["fixtures"]:
         if selected and fixture["name"] not in selected:
@@ -76,7 +89,13 @@ def build(output_root, selected=None, strict=False):
         fixture = dict(fixture)
         if strict:
             fixture["required"] = True
-        total += build_fixture(fixture, output_root, fixture.get("variants", variants))
+        total += build_fixture(
+            fixture, output_root, fixture.get("variants", variants), report
+        )
+    output_root.mkdir(parents=True, exist_ok=True)
+    (output_root / "validation-manifest.json").write_text(
+        json.dumps(report, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+    )
     return total
 
 

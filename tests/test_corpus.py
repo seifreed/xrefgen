@@ -23,3 +23,6 @@ def test_corpus_manifest_covers_real_fixture_families_and_variants():
         for fixture in fixtures
     )
     assert (CORPUS / "arm64_function_pointer_positive.ground_truth.json").is_file()
+    matrix = json.loads((CORPUS / "validation_matrix.json").read_text(encoding="utf-8"))
+    assert {target["version"] for target in matrix["ida"]} >= {"9.1", "9.2", "9.3"}
+    assert {target["platform"] for target in matrix["ida"]} >= {"linux", "macos", "windows"}

@@ -17,6 +17,8 @@ jobs:
           python-version: ${{ matrix.python-version }}
       - run: python -m pip install --upgrade pytest
       - run: python -m pytest -q
+      - run: python scripts/build_corpus.py --output dist/corpus
+      - run: python -c "import json; from pathlib import Path; p=Path('dist/corpus/validation-manifest.json'); assert len(json.loads(p.read_text())['artifacts']) >= 20"
       - run: python scripts/build_release.py dist/xrefgen-ci.zip
       - run: |
           python - <<'PY'
@@ -28,6 +30,7 @@ jobs:
               "xrefgen/docs/compatibility.md",
               "xrefgen/SECURITY.md",
               "xrefgen/scripts/build_corpus.py",
+              "xrefgen/scripts/run_corpus_matrix.py",
               "xrefgen/scripts/ida_corpus_tests.py",
               "xrefgen/scripts/ida_real_tests.py",
               "xrefgen/scripts/install_ida.py",

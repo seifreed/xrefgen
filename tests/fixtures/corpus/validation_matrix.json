@@ -1,0 +1,34 @@
+{
+  "ida": [
+    {
+      "id": "ida-9.1-linux",
+      "version": "9.1",
+      "platform": "linux",
+      "executable_env": "XREFGEN_IDA_9_1_LINUX"
+    },
+    {
+      "id": "ida-9.2-linux",
+      "version": "9.2",
+      "platform": "linux",
+      "executable_env": "XREFGEN_IDA_9_2_LINUX"
+    },
+    {
+      "id": "ida-9.3-linux",
+      "version": "9.3",
+      "platform": "linux",
+      "executable_env": "XREFGEN_IDA_9_3_LINUX"
+    },
+    {
+      "id": "ida-9.2-macos",
+      "version": "9.2",
+      "platform": "macos",
+      "executable_env": "XREFGEN_IDA_9_2_MACOS"
+    },
+    {
+      "id": "ida-9.2-windows",
+      "version": "9.2",
+      "platform": "windows",
+      "executable_env": "XREFGEN_IDA_9_2_WINDOWS"
+    }
+  ]
+}

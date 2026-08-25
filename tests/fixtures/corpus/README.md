@@ -19,5 +19,10 @@ clang -O0 -fno-pie -no-pie -g \
 
 Run `scripts/ida_real_tests.py` inside IDA with
 `XREFGEN_EXPECTED_JSON` pointing at the matching ground-truth file, then gate
-the export with precision and recall thresholds. Additional compiler,
-architecture, and obfuscation fixtures should be added before beta claims.
+the export with precision and recall thresholds.
+
+The build writes `validation-manifest.json` with every artifact and its
+ground-truth file. `scripts/run_corpus_matrix.py` consumes that manifest and
+`validation_matrix.json`; set the declared `XREFGEN_IDA_*` variables to IDA
+executables and use `--strict` to fail when any IDA/version/platform target is
+missing or fails.
