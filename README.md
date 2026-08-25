@@ -40,15 +40,16 @@ It is especially useful for:
 | **Incremental & Cached Analysis** | Re-analyzes modified functions where safe; global summaries are rebuilt |
 | **Confidence Scoring** | Each xref has a confidence score |
 | **Evidence Tracking** | Evidence is exported in detailed/JSON/CSV formats |
-| **Multi-Architecture** | x86, x64, ARM, ARM64, MIPS |
+| **Multi-Architecture** | x86, x64, ARM, ARM64, MIPS; experimental WASM parsing |
 
 ## Supported Architectures
 
 - x86 / x64
 - ARM / ARM64
 - MIPS
-- WebAssembly (WASM): static `call_indirect` and `br_table` resolution when
-  the table index is statically known
+- WebAssembly (WASM, experimental): parser-level static `call_indirect` and
+  `br_table` resolution when the table index is known. It is not covered by
+  the certified IDA corpus matrix; dynamic table indices remain findings.
 
 ## Modules (What It Analyzes)
 
@@ -71,6 +72,11 @@ It is especially useful for:
 - **Architecture Analyzer**
   - Cross-architecture register resolution
   - ABI-aware calling convention logic
+
+- **Similarity Analyzer (optional heuristic)**
+  - Compares mnemonic-set signatures with Jaccard similarity
+  - Emits relationship metadata only, never XRefer xrefs
+  - Does not require or provide an ML model or embeddings
 
 - **Hex-Rays / Decompiler Evidence**
   - Extracts high-confidence refs from decompiled views (when available)
