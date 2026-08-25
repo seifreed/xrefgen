@@ -23,3 +23,7 @@ implementation and should not be presented as one.
 The source corpus is described by `tests/fixtures/corpus/manifest.json` and can
 be built with `python scripts/build_corpus.py`; MIPS and cross-target entries
 require a matching local compiler target.
+
+The maintained portable corpus lives in the separate `xrefgen-corpus` repository
+and exports the same `validation-manifest.json` contract. `run_corpus_matrix.py`
+accepts either that external build or the legacy in-repository corpus.

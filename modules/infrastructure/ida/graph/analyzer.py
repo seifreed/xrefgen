@@ -28,7 +28,7 @@ from modules.infrastructure.ida.graph.noise import GraphNoisePolicy
 class GraphAnalyzer(IncrementalAnalyzer):
     """Graph-based analysis for call chains and function clustering"""
 
-    CALL_MNEMS = {"call", "bl", "blx", "jal", "jalr"}
+    CALL_MNEMS = {"call", "bl", "blx", "jal", "jalr", "bal"}
     JMP_MNEMS = {"jmp"}
     COND_JMPS = {"je", "jne", "jz", "jnz", "ja", "jb", "jg", "jl", "jge", "jle", "jo", "jno", "js", "jns"}
     RET_MNEMS = {"call", "ret", "retn"}

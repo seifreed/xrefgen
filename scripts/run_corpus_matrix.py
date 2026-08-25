@@ -27,14 +27,19 @@ def _run_target(target, manifest, corpus_root, script, strict):
             artifact["fixture"] + "-" + artifact["variant"] + ".json"
         )
         actual.parent.mkdir(parents=True, exist_ok=True)
-        expected = ROOT / "tests" / "fixtures" / "corpus" / artifact["ground_truth"]
+        expected = corpus_root / artifact["ground_truth"]
+        if not expected.is_file():
+            expected = ROOT / "tests" / "fixtures" / "corpus" / artifact["ground_truth"]
         environment = dict(os.environ)
         environment.update({
             "XREFGEN_ROOT": str(ROOT),
             "XREFGEN_EXPECTED_JSON": str(expected),
             "XREFGEN_CORPUS_ACTUAL": str(actual),
         })
-        command = [executable, "-A", f"-S{script}", str(corpus_root / artifact["path"])]
+        binary = corpus_root / artifact["path"]
+        for suffix in (".i64", ".id0", ".id1", ".id2", ".nam", ".til"):
+            binary.with_name(binary.name + suffix).unlink(missing_ok=True)
+        command = [executable, "-A", f"-S{script}", str(binary)]
         completed = subprocess.run(
             command,
             cwd=ROOT,

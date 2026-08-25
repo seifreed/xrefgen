@@ -6,6 +6,7 @@ import os
 import sys
 
 import ida_xref
+import ida_auto
 import idautils
 import idc
 
@@ -31,9 +32,14 @@ def _resolve(name):
 def _symbolic_refs(payload):
     refs = []
     for entry in payload.get("expected_symbols", []):
-        source = _resolve(entry["source"])
+        source = entry.get("source_address")
+        if source is None:
+            source = _resolve(entry["source"])
+        else:
+            source = int(source, 0) if isinstance(source, str) else source
+        source += entry.get("source_offset", 0)
         mnemonic = entry.get("source_mnemonic")
-        if mnemonic:
+        if mnemonic and "source_offset" not in entry:
             matches = [
                 head
                 for head in idautils.FuncItems(source)
@@ -44,10 +50,30 @@ def _symbolic_refs(payload):
                     f"expected one {mnemonic} in {entry['source']}, found {len(matches)}"
                 )
             source = matches[0]
+        target = entry.get("target_address")
+        if target is None:
+            target = _resolve(entry["target"])
+        else:
+            target = int(target, 0) if isinstance(target, str) else target
+        if entry.get("resolve_source_by_target"):
+            matches = [
+                head
+                for head in idautils.FuncItems(_resolve(entry["source"]))
+                if (not mnemonic or idc.print_insn_mnem(head).lower() == mnemonic.lower())
+                and (
+                    target in idautils.CodeRefsFrom(head, False)
+                    or idc.get_operand_value(head, 0) == target
+                )
+            ]
+            if len(matches) != 1:
+                raise ValueError(
+                    f"expected one call to {entry['target']} in {entry['source']}, found {len(matches)}"
+                )
+            source = matches[0]
         refs.append(
             {
                 "source": f"0x{source:x}",
-                "target": f"0x{_resolve(entry['target']):x}",
+                "target": f"0x{target:x}",
                 "kind": entry["kind"],
             }
         )
@@ -62,6 +88,7 @@ def _refs(entries):
 
 
 def run(expected_path):
+    ida_auto.auto_wait()
     with open(expected_path, encoding="utf-8") as handle:
         expected_payload = json.load(handle)
     expected_entries = list(expected_payload.get("expected_xrefs", []))
@@ -69,19 +96,17 @@ def run(expected_path):
     forbidden = _refs(expected_payload.get("forbidden_xrefs", []))
     expected = _refs(expected_entries)
 
-    removed = set()
+    removed = {(int(source, 16), int(target, 16)) for source, target, _kind in expected}
     if expected_payload.get("remove_existing", False):
-        for source, target, _kind in expected:
-            source_ea = int(source, 16)
-            target_ea = int(target, 16)
-            ida_xref.del_cref(source_ea, target_ea, 0)
-            removed.add((source_ea, target_ea))
+        for source, target in removed:
+            ida_xref.del_cref(source, target, 0)
 
     config_path = os.environ.get("XREFGEN_CONFIG", os.path.join(ROOT, "xrefgen_config.json"))
     cfg = copy.deepcopy(Config(config_path).config)
     modules_cfg = cfg.setdefault("modules", {})
+    enabled_modules = {"graph", "performance", *expected_payload.get("enabled_modules", [])}
     for name, module_cfg in modules_cfg.items():
-        if name not in {"graph", "performance"} and isinstance(module_cfg, dict):
+        if name not in enabled_modules and isinstance(module_cfg, dict):
             module_cfg["enabled"] = False
     modules_cfg.setdefault("graph", {})["skip_slow_graph"] = True
     performance_cfg = modules_cfg.setdefault("performance", {})

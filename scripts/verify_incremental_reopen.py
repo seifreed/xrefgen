@@ -138,6 +138,7 @@ def _mutate(cache_dir):
             "full_before_results": len(full_before),
             "incremental_results": len(incremental),
             "full_after_results": len(full_after),
+            "semantic_results_nonempty": bool(full_before or incremental or full_after),
             "incremental_equals_full_after": incremental == full_after,
         }
     )
@@ -157,6 +158,7 @@ def _reopen(cache_dir):
             "stage": "reopen",
             "warm_results": len(warm),
             "full_results": len(full),
+            "semantic_results_nonempty": bool(warm or full),
             "warm_equals_full": warm == full,
         }
     )
@@ -168,10 +170,18 @@ def run():
     cache_dir = os.environ.get("XREFGEN_INCREMENTAL_CACHE", ".xrefgen-reopen-cache")
     if stage == "mutate":
         report = _mutate(cache_dir)
-        return 0 if report["caller_invalidated"] and report["incremental_equals_full_after"] else 1
+        required = os.environ.get("XREFGEN_EXPECT_NONEMPTY") == "1"
+        return 0 if (
+            report["caller_invalidated"]
+            and report["incremental_equals_full_after"]
+            and (not required or report["semantic_results_nonempty"])
+        ) else 1
     if stage == "reopen":
         report = _reopen(cache_dir)
-        return 0 if report["warm_equals_full"] else 1
+        required = os.environ.get("XREFGEN_EXPECT_NONEMPTY") == "1"
+        return 0 if report["warm_equals_full"] and (
+            not required or report["semantic_results_nonempty"]
+        ) else 1
     raise ValueError(f"unsupported stage: {stage}")
 
 

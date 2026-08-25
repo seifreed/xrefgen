@@ -174,6 +174,20 @@ python scripts/build_corpus.py --output build/corpus
 The builder records real compiler outputs and skips unavailable optional
 toolchains; use `--strict` when every manifest entry is required.
 
+The maintained cross-toolchain corpus is published separately at
+`github.com/seifreed/xrefgen-corpus`. Build it there, then validate its
+`dist/validation-manifest.json` with:
+
+```bash
+XREFGEN_IDA_9_3_MACOS=/path/to/idat \
+python scripts/run_corpus_matrix.py --corpus /path/to/corpus/dist \
+  --target ida-9.3-macos --strict
+```
+
+For persisted incremental DataFlow checks over multiple binaries, use
+`scripts/run_incremental_reopen_matrix.py` with `--expect-nonempty` when the
+fixture must produce semantic results.
+
 Similarity relationships use deterministic mnemonic signatures. IDA feature
 evidence uses available type information and Hex-Rays ctree calls; it degrades
 cleanly when Hex-Rays is unavailable. The plugin menu provides full,

@@ -34,7 +34,7 @@ CONTROL_FLOW_TYPES = frozenset(
 
 CONTROL_FLOW_MNEMONICS = frozenset(
     {
-        "call", "bl", "blx", "jal", "jalr", "jmp", "b", "br", "blr",
+        "call", "bl", "blx", "jal", "jalr", "bal", "jmp", "b", "br", "blr",
         "bx", "jr", "cbz", "cbnz", "tbz", "tbnz", "tbb", "tbh",
         "call_indirect", "br_table",
     }

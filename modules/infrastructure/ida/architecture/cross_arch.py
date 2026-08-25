@@ -387,6 +387,12 @@ class CrossArchAnalyzer(IncrementalAnalyzer):
                     results.append(self.emit_control_flow(
                         head, target, "mips_plt_call", 0.7, ("mips",)
                     ))
+            elif mnem == "bal":
+                target = idc.get_operand_value(head, 0)
+                if target != idc.BADADDR and self.is_valid_reference(target):
+                    results.append(self.emit_control_flow(
+                        head, target, "call_edge", 0.95, ("mips",)
+                    ))
         
         return results
     
