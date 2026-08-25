@@ -339,10 +339,14 @@ class DataFlowAnalyzer(IncrementalAnalyzer):
 
     def get_semantic_cache(self, func_ea: int) -> Dict[str, Any]:
         """Return the serializable interprocedural contract of one function."""
+        return_values = self.return_values.get(func_ea, ())
         return {
             "version": 2,
             "dependencies": sorted(self._function_dependencies.get(func_ea, set())),
-            "return_values": list(self.return_values.get(func_ea, ())),
+            "return_values": [
+                list(value) if isinstance(value, (list, tuple)) else value
+                for value in return_values
+            ],
             "arg_to_return": sorted(self.taint_summaries.get(func_ea, set())),
             "arg_to_arg": {
                 key: sorted(value)
@@ -357,7 +361,10 @@ class DataFlowAnalyzer(IncrementalAnalyzer):
         self._function_dependencies[func_ea] = {
             int(value) for value in semantic.get("dependencies", ())
         }
-        return_values = tuple(semantic.get("return_values", ()))
+        return_values = tuple(
+            tuple(value) if isinstance(value, list) else value
+            for value in semantic.get("return_values", ())
+        )
         if return_values:
             self.return_values[func_ea] = return_values
         else:
