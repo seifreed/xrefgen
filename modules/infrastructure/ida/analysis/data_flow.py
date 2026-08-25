@@ -566,7 +566,7 @@ class DataFlowAnalyzer(IncrementalAnalyzer):
 
     def _analyze_taint_for_function(
         self, func_ea: int
-    ) -> List[Tuple[int, int, str, float]]:
+    ) -> List[AnalysisResult]:
         results = []
         try:
             func_name = idc.get_func_name(func_ea)
@@ -805,7 +805,7 @@ class DataFlowAnalyzer(IncrementalAnalyzer):
     def _is_format_string(self, call_ea: int) -> bool:
         return self.string_evidence.is_format_string(call_ea)
 
-    def _analyze_return_values(self) -> List[Tuple[int, int, str, float]]:
+    def _analyze_return_values(self) -> List[AnalysisResult]:
         """Track function return values used as indirect call targets."""
         results = []
         for func_ea, func in self._iter_functions():
@@ -815,7 +815,7 @@ class DataFlowAnalyzer(IncrementalAnalyzer):
 
     def _analyze_return_values_for_function(
         self, func_ea: int, func
-    ) -> List[Tuple[int, int, str, float]]:
+    ) -> List[AnalysisResult]:
         results = []
         self._collect_return_values(func_ea, func)
         results.extend(self._emit_return_value_xrefs(func_ea))
@@ -840,7 +840,7 @@ class DataFlowAnalyzer(IncrementalAnalyzer):
         """Check if return value from a call is used for indirect call"""
         return self.return_tracker.check_return_usage(call_ea, called_func)
 
-    def _analyze_pointer_chains(self) -> List[Tuple[int, int, str, float]]:
+    def _analyze_pointer_chains(self) -> List[AnalysisResult]:
         """Analyze multi-level pointer dereferences."""
         results = []
         for _func_ea, func in self._iter_functions():
@@ -888,7 +888,7 @@ class DataFlowAnalyzer(IncrementalAnalyzer):
 
     def _emit_return_value_xrefs(
         self, func_ea: int
-    ) -> List[Tuple[int, int, str, float]]:
+    ) -> List[AnalysisResult]:
         results = []
         for xref in idautils.XrefsTo(func_ea):
             if xref.type in [ida_xref.fl_CN, ida_xref.fl_CF]:
@@ -902,7 +902,7 @@ class DataFlowAnalyzer(IncrementalAnalyzer):
 
     def _emit_pointer_chain_results(
         self, pointer_chains: List[Tuple[int, int, int]]
-    ) -> List[Tuple[int, int, str, float]]:
+    ) -> List[AnalysisResult]:
         results = []
         for source, target, depth in pointer_chains:
             confidence = max(0.5, 1.0 - (depth * 0.1))
@@ -1402,7 +1402,7 @@ class DataFlowAnalyzer(IncrementalAnalyzer):
         except (TypeError, ValueError, AttributeError, RuntimeError):
             return False
 
-    def _hexrays_taint_flow(self, func_ea: int) -> List[Tuple[int, int, str, float]]:
+    def _hexrays_taint_flow(self, func_ea: int) -> List[AnalysisResult]:
         if not self.use_hexrays_taint or ida_hexrays is None:
             return []
         func = ida_funcs.get_func(func_ea)
@@ -1412,7 +1412,7 @@ class DataFlowAnalyzer(IncrementalAnalyzer):
             cfunc = ida_hexrays.decompile(func.start_ea)
         except (TypeError, ValueError, AttributeError, RuntimeError):
             return []
-        results: List[Tuple[int, int, str, float]] = []
+        results: List[AnalysisResult] = []
         tainted = set()
         sources = self.taint_sources
         sinks = self.taint_sinks

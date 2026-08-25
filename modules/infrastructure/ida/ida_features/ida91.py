@@ -5,6 +5,7 @@ Lumina integration, type library matching, and microcode analysis
 
 from typing import Dict, List, Tuple
 from modules.infrastructure.ida.base import IDAXrefAnalyzer
+from modules.domain.results import AnalysisResult
 import idaapi
 import idc
 import idautils
@@ -37,7 +38,7 @@ class IDA91Analyzer(IDAXrefAnalyzer):
     def get_name(self) -> str:
         return "IDAFeatures"
 
-    def analyze(self) -> List[Tuple[int, int, str, float]]:
+    def analyze(self) -> List[AnalysisResult]:
         """Perform IDA 9.1 specific analysis"""
         if not self.is_compatible:
             print(f"[XrefGen] IDA 9.1+ required (current: {self.ida_version})")
@@ -62,9 +63,9 @@ class IDA91Analyzer(IDAXrefAnalyzer):
 
         return results
 
-    def _analyze_microcode(self) -> List[Tuple[int, int, str, float]]:
+    def _analyze_microcode(self) -> List[AnalysisResult]:
         """Analyze using Hex-Rays (ctree) to find direct/indirect calls."""
-        results: List[Tuple[int, int, str, float]] = []
+        results: List[AnalysisResult] = []
 
         try:
             import ida_hexrays
@@ -405,7 +406,7 @@ class IDA91Analyzer(IDAXrefAnalyzer):
 
         return results
 
-    def _match_type_libraries(self) -> List[Tuple[int, int, str, float]]:
+    def _match_type_libraries(self) -> List[AnalysisResult]:
         """Record functions for which IDA resolved a library-backed type."""
         results = []
         if ida_typeinf is None:
@@ -428,9 +429,9 @@ class IDA91Analyzer(IDAXrefAnalyzer):
                 continue
         return results
 
-    def _query_lumina(self) -> List[Tuple[int, int, str, float]]:
+    def _query_lumina(self) -> List[AnalysisResult]:
         """Query Lumina metadata service if available, attach names/types."""
-        results: List[Tuple[int, int, str, float]] = []
+        results: List[AnalysisResult] = []
         try:
             import ida_lumina
         except ImportError:

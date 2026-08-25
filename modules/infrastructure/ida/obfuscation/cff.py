@@ -14,6 +14,7 @@ from modules.infrastructure.ida.obfuscation.cff_utils import (
     is_reg_assignment,
     imm_assignment_value,
 )
+from modules.domain.results import AnalysisResult
 
 
 class CFFDetector:
@@ -32,13 +33,13 @@ class CFFDetector:
         self.dispatcher_blocks = {}
         self.flattened_functions = set()
 
-    def analyze(self) -> List[Tuple[int, int, str, float]]:
+    def analyze(self) -> List[AnalysisResult]:
         results = []
         for func_ea, func in self._iter_functions():
             results.extend(self.analyze_function(func_ea, func))
         return results
 
-    def analyze_function(self, func_ea: int, func) -> List[Tuple[int, int, str, float]]:
+    def analyze_function(self, func_ea: int, func) -> List[AnalysisResult]:
         results = []
         mnem_cache = {}
         dispatchers = self._find_dispatcher_candidates(func, mnem_cache)

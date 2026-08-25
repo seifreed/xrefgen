@@ -3,7 +3,7 @@ Cross-Architecture Support Module
 Handles architecture-specific patterns for ARM, MIPS, and WebAssembly
 """
 
-from typing import Dict, List, Tuple, Optional
+from typing import Dict, List, Optional
 import idautils
 import idc
 import ida_nalt
@@ -19,6 +19,7 @@ except ImportError:
 from modules.infrastructure.ida.performance.optimizer import IncrementalAnalyzer
 from modules.infrastructure.ida.utils.insn import scan_back_for_reg_source
 from modules.infrastructure.ida.architecture.wasm import WasmModule
+from modules.domain.results import AnalysisResult
 
 class CrossArchAnalyzer(IncrementalAnalyzer):
     """Architecture-specific xref analysis"""
@@ -75,20 +76,20 @@ class CrossArchAnalyzer(IncrementalAnalyzer):
         else:
             return 'x86'
     
-    def analyze(self) -> List[Tuple[int, int, str, float]]:
+    def analyze(self) -> List[AnalysisResult]:
         """Perform architecture-specific analysis"""
         if self.arch not in self.supported_archs:
             print(f"[XrefGen] Architecture {self.arch} not in supported list")
             return []
         return super().analyze()
 
-    def analyze_function(self, func) -> List[Tuple[int, int, str, float]]:
+    def analyze_function(self, func) -> List[AnalysisResult]:
         handler = self.arch_handlers.get(self.arch)
         if not handler:
             return []
         return handler(func)
     
-    def _analyze_arm(self, func) -> List[Tuple[int, int, str, float]]:
+    def _analyze_arm(self, func) -> List[AnalysisResult]:
         """ARM-specific analysis"""
         results = []
         results.extend(self._find_arm_indirect_calls(func))
@@ -97,7 +98,7 @@ class CrossArchAnalyzer(IncrementalAnalyzer):
             
         return results
     
-    def _find_arm_indirect_calls(self, func) -> List[Tuple[int, int, str, float]]:
+    def _find_arm_indirect_calls(self, func) -> List[AnalysisResult]:
         """Find ARM indirect call patterns"""
         refs = []
         
@@ -196,7 +197,7 @@ class CrossArchAnalyzer(IncrementalAnalyzer):
         sreg_val = ida_segregs.get_sreg(ea, ida_segregs.sr_t)
         return sreg_val == 1
     
-    def _find_arm_vtables(self, func) -> List[Tuple[int, int, str, float]]:
+    def _find_arm_vtables(self, func) -> List[AnalysisResult]:
         """Find ARM virtual table calls"""
         refs = []
         
@@ -257,7 +258,7 @@ class CrossArchAnalyzer(IncrementalAnalyzer):
                     return idc.get_operand_value(prev_ea, 1)
         return None
     
-    def _find_arm_switch_tables(self, func) -> List[Tuple[int, int, str, float]]:
+    def _find_arm_switch_tables(self, func) -> List[AnalysisResult]:
         """Find ARM switch table implementations"""
         refs = []
         
@@ -300,7 +301,7 @@ class CrossArchAnalyzer(IncrementalAnalyzer):
         
         return None
     
-    def _analyze_arm64(self, func) -> List[Tuple[int, int, str, float]]:
+    def _analyze_arm64(self, func) -> List[AnalysisResult]:
         """ARM64/AArch64-specific analysis"""
         results = []
         for head in idautils.Heads(func.start_ea, func.end_ea):
@@ -344,7 +345,7 @@ class CrossArchAnalyzer(IncrementalAnalyzer):
             resolver,
         )
     
-    def _analyze_mips(self, func) -> List[Tuple[int, int, str, float]]:
+    def _analyze_mips(self, func) -> List[AnalysisResult]:
         """MIPS-specific analysis"""
         results = []
         for head in idautils.Heads(func.start_ea, func.end_ea):
@@ -472,7 +473,7 @@ class CrossArchAnalyzer(IncrementalAnalyzer):
                 addresses[index] = ea
         return addresses
 
-    def _analyze_wasm(self, func) -> List[Tuple[int, int, str, float]]:
+    def _analyze_wasm(self, func) -> List[AnalysisResult]:
         module = self._wasm_module()
         if not module:
             return []
@@ -505,7 +506,7 @@ class CrossArchAnalyzer(IncrementalAnalyzer):
                         ))
         return results
     
-    def _analyze_x86(self, func) -> List[Tuple[int, int, str, float]]:
+    def _analyze_x86(self, func) -> List[AnalysisResult]:
         """x86-specific analysis (32-bit)"""
         results = []
         for head in idautils.Heads(func.start_ea, func.end_ea):
@@ -557,7 +558,7 @@ class CrossArchAnalyzer(IncrementalAnalyzer):
         edx_set = scan_back_for_reg_source(ea, "edx", max_back=10, mnems=("mov",)) is not None
         return ecx_set and edx_set
     
-    def _analyze_x64(self, func) -> List[Tuple[int, int, str, float]]:
+    def _analyze_x64(self, func) -> List[AnalysisResult]:
         """x64-specific analysis"""
         results = []
         for head in idautils.Heads(func.start_ea, func.end_ea):

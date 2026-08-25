@@ -2,6 +2,7 @@
 
 from typing import Dict, List, Tuple, Set
 from modules.infrastructure.ida.base import IDAXrefAnalyzer
+from modules.domain.results import AnalysisResult
 import idautils
 import idc
 
@@ -17,7 +18,7 @@ class SimilarityAnalyzer(IDAXrefAnalyzer):
     def get_name(self) -> str:
         return "SimilarityAnalyzer"
 
-    def analyze(self) -> List[Tuple[int, int, str, float]]:
+    def analyze(self) -> List[AnalysisResult]:
         """Emit relationship results from mnemonic-set Jaccard similarity."""
         try:
             results = []

@@ -5,6 +5,7 @@ import idautils
 import ida_funcs
 import idc
 from modules.infrastructure.ida.base import IDAXrefAnalyzer
+from modules.domain.results import AnalysisResult
 
 
 class OpaquePredicateDetector:
@@ -14,13 +15,13 @@ class OpaquePredicateDetector:
         self.always_taken_branches = set()
         self.never_taken_branches = set()
 
-    def analyze(self) -> List[Tuple[int, int, str, float]]:
+    def analyze(self) -> List[AnalysisResult]:
         results = []
         for _func_ea, func in self._iter_functions():
             results.extend(self.analyze_function(func))
         return results
 
-    def analyze_function(self, func) -> List[Tuple[int, int, str, float]]:
+    def analyze_function(self, func) -> List[AnalysisResult]:
         results = []
         mnem_cache = {}
         for head in idautils.Heads(func.start_ea, func.end_ea):

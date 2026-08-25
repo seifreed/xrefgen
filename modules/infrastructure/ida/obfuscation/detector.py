@@ -8,6 +8,7 @@ from modules.infrastructure.ida.obfuscation.cff import CFFDetector
 from modules.infrastructure.ida.obfuscation.opaque import OpaquePredicateDetector
 from modules.infrastructure.ida.obfuscation.strings import EncryptedStringDetector
 from modules.infrastructure.ida.obfuscation.anti import AntiAnalysisDetector
+from modules.domain.results import AnalysisResult
 
 
 class ObfuscationDetector(IncrementalAnalyzer):
@@ -27,12 +28,12 @@ class ObfuscationDetector(IncrementalAnalyzer):
     def get_name(self) -> str:
         return "ObfuscationDetector"
 
-    def analyze(self) -> List[Tuple[int, int, str, float]]:
+    def analyze(self) -> List[AnalysisResult]:
         # Use IncrementalAnalyzer implementation (analyze_function per func)
         return super().analyze()
 
-    def analyze_function(self, func) -> List[Tuple[int, int, str, float]]:
-        results: List[Tuple[int, int, str, float]] = []
+    def analyze_function(self, func) -> List[AnalysisResult]:
+        results: List[AnalysisResult] = []
         if hasattr(self, "_slow_functions") and func.start_ea in self._slow_functions:
             # Skip heavy heuristics on slow functions
             if self.detect_anti:
@@ -50,8 +51,8 @@ class ObfuscationDetector(IncrementalAnalyzer):
         results.extend(self._detect_flattening(func))
         return results
 
-    def _detect_api_hashing(self, func) -> List[Tuple[int, int, str, float]]:
-        results: List[Tuple[int, int, str, float]] = []
+    def _detect_api_hashing(self, func) -> List[AnalysisResult]:
+        results: List[AnalysisResult] = []
         targets = {"getprocaddress", "ldrgetprocedureaddress"}
         for head in idautils.Heads(func.start_ea, func.end_ea):
             if idc.print_insn_mnem(head).lower() != "call":
@@ -83,8 +84,8 @@ class ObfuscationDetector(IncrementalAnalyzer):
                 ))
         return results
 
-    def _detect_flattening(self, func) -> List[Tuple[int, int, str, float]]:
-        results: List[Tuple[int, int, str, float]] = []
+    def _detect_flattening(self, func) -> List[AnalysisResult]:
+        results: List[AnalysisResult] = []
         jmp_count = 0
         ind_jmp = 0
         last_ind_jmp = None

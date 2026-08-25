@@ -4,6 +4,7 @@ from typing import List, Tuple
 import idautils
 import idc
 from modules.infrastructure.ida.base import IDAXrefAnalyzer
+from modules.domain.results import AnalysisResult
 
 
 class AntiAnalysisDetector:
@@ -12,7 +13,7 @@ class AntiAnalysisDetector:
         self.mnem_patterns = {"int3", "rdtsc", "rdtscp", "cpuid"}
         self.api_patterns = {"isdebuggerpresent", "checkremotedebuggerpresent", "ntqueryinformationprocess"}
 
-    def analyze_function(self, func) -> List[Tuple[int, int, str, float]]:
+    def analyze_function(self, func) -> List[AnalysisResult]:
         results = []
         for head in idautils.Heads(func.start_ea, func.end_ea):
             mnem = idc.print_insn_mnem(head).lower()

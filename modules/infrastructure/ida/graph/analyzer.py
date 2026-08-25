@@ -20,6 +20,7 @@ except (TypeError, ValueError, AttributeError, RuntimeError):
     ida_typeinf = None
 from collections import defaultdict, deque
 from modules.infrastructure.ida.performance.optimizer import IncrementalAnalyzer
+from modules.domain.results import AnalysisResult
 from modules.infrastructure.ida.graph.strategies import CallbackResolver, WrapperDetector, SEHResolver, VTableResolver
 from modules.infrastructure.ida.graph.services import EntryPointFinder, ComplexityAnalyzer
 from modules.infrastructure.ida.graph.noise import GraphNoisePolicy
@@ -127,7 +128,7 @@ class GraphAnalyzer(IncrementalAnalyzer):
     def get_name(self) -> str:
         return "GraphAnalyzer"
     
-    def analyze(self) -> List[Tuple[int, int, str, float]]:
+    def analyze(self) -> List[AnalysisResult]:
         """Perform graph-based analysis"""
         self.reset_analysis_state()
         results = []
@@ -176,12 +177,12 @@ class GraphAnalyzer(IncrementalAnalyzer):
         self._indirect_cache.clear()
         self._edges_by_func.clear()
 
-    def analyze_function(self, func) -> List[Tuple[int, int, str, float]]:
+    def analyze_function(self, func) -> List[AnalysisResult]:
         """Incremental analysis for a single function: only emit its call edges."""
         func_ea = func.start_ea
         if self._is_trivial_function(func):
             return []
-        local_results: List[Tuple[int, int, str, float]] = []
+        local_results: List[AnalysisResult] = []
         mnem_cache = {}
         self._clear_edges_for_func(func_ea)
         # Build calls from this function only
@@ -205,7 +206,7 @@ class GraphAnalyzer(IncrementalAnalyzer):
     def _add_call_edge_xref(self, source: int, target: int, conf: float = 0.9):
         return self.emit_control_flow(source, target, "call_edge", conf, ("graph",))
 
-    def _analyze_hubs(self) -> List[Tuple[int, int, str, float]]:
+    def _analyze_hubs(self) -> List[AnalysisResult]:
         results = []
         for func_ea, called in sorted(self.call_graph.items()):
             degree = len(called) + len(self.reverse_call_graph.get(func_ea, set()))
@@ -217,7 +218,7 @@ class GraphAnalyzer(IncrementalAnalyzer):
                     ))
         return results
 
-    def _analyze_cycles(self) -> List[Tuple[int, int, str, float]]:
+    def _analyze_cycles(self) -> List[AnalysisResult]:
         results = []
         if self.cycle_max_len < 2:
             return results
@@ -394,7 +395,7 @@ class GraphAnalyzer(IncrementalAnalyzer):
         merged.sort(key=lambda x: x[1], reverse=True)
         return merged
 
-    def _analyze_trampolines(self) -> List[Tuple[int, int, str, float]]:
+    def _analyze_trampolines(self) -> List[AnalysisResult]:
         results = []
         for func_ea, func in self._iter_functions():
             if (func.end_ea - func.start_ea) > self.skip_trivial_size:
@@ -583,7 +584,7 @@ class GraphAnalyzer(IncrementalAnalyzer):
             return results
         return results
     
-    def _analyze_call_chains(self) -> List[Tuple[int, int, str, float]]:
+    def _analyze_call_chains(self) -> List[AnalysisResult]:
         """Build and analyze call chains from entry points"""
         results = []
         entry_points = self._entry_finder.find_entry_points()
@@ -665,7 +666,7 @@ class GraphAnalyzer(IncrementalAnalyzer):
         dfs(entry, 0)
         return chains
     
-    def _generate_clusters(self) -> List[Tuple[int, int, str, float]]:
+    def _generate_clusters(self) -> List[AnalysisResult]:
         """Generate function clusters based on xref patterns"""
         results = []
         
@@ -762,7 +763,7 @@ class GraphAnalyzer(IncrementalAnalyzer):
         
         return cohesion * size_factor
     
-    def _analyze_complexity(self) -> List[Tuple[int, int, str, float]]:
+    def _analyze_complexity(self) -> List[AnalysisResult]:
         print("[XrefGen] Analyzing function complexity...")
         return self._complexity.analyze()
 

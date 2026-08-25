@@ -22,7 +22,7 @@ except ImportError:
     idaapi = None
 from modules import __version__
 from modules.domain.analyzer import XrefAnalyzer
-from modules.domain.results import deserialize_result, serialize_result
+from modules.domain.results import AnalysisResult, deserialize_result, serialize_result
 from modules.infrastructure.ida.base import IDAXrefAnalyzer
 from modules.infrastructure.ida.utils.function_cache import FunctionBoundsCache
 
@@ -524,10 +524,10 @@ class IncrementalAnalyzer(IDAXrefAnalyzer):
     def set_slow_functions(self, slow: Set[int]):
         self._slow_functions = set(slow or [])
 
-    def analyze_function(self, func) -> List[Tuple[int, int, str, float]]:
+    def analyze_function(self, func) -> List[AnalysisResult]:
         raise NotImplementedError("Subclasses must implement analyze_function")
 
-    def analyze(self) -> List[Tuple[int, int, str, float]]:
+    def analyze(self) -> List[AnalysisResult]:
         results = []
         for func_ea in sorted(idautils.Functions()):
             if self.modified_functions and func_ea not in self.modified_functions:

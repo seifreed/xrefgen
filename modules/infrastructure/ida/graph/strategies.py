@@ -8,13 +8,14 @@ from modules.infrastructure.ida.compat import is_64bit
 from modules.infrastructure.ida.utils import abi
 from modules.infrastructure.ida.utils.names import normalize_name
 from modules.infrastructure.ida.utils.insn import scan_back_for_reg_source
+from modules.domain.results import AnalysisResult
 
 
 class WrapperDetector:
     def __init__(self, analyzer):
         self.a = analyzer
 
-    def analyze(self) -> List[Tuple[int, int, str, float]]:
+    def analyze(self) -> List[AnalysisResult]:
         results = []
         for func_ea, func in self.a._iter_functions():
             if (func.end_ea - func.start_ea) > self.a.skip_trivial_size * 2:
@@ -43,7 +44,7 @@ class CallbackResolver:
     def __init__(self, analyzer):
         self.a = analyzer
 
-    def analyze(self) -> List[Tuple[int, int, str, float]]:
+    def analyze(self) -> List[AnalysisResult]:
         results = []
         callbacks = self.a.callback_targets or {}
         regs = abi.arg_registers()
@@ -83,7 +84,7 @@ class SEHResolver:
     def __init__(self, analyzer):
         self.a = analyzer
 
-    def analyze(self) -> List[Tuple[int, int, str, float]]:
+    def analyze(self) -> List[AnalysisResult]:
         results = []
         for seg_ea in idautils.Segments():
             name = idc.get_segm_name(seg_ea).lower()
@@ -110,7 +111,7 @@ class VTableResolver:
     def __init__(self, analyzer):
         self.a = analyzer
 
-    def analyze(self) -> List[Tuple[int, int, str, float]]:
+    def analyze(self) -> List[AnalysisResult]:
         results = []
         seen_entries = set()
         try:

@@ -1,5 +1,6 @@
 """Graph analysis services."""
 from typing import List, Tuple
+from modules.domain.results import AnalysisResult
 import idaapi
 import idautils
 import idc
@@ -65,7 +66,7 @@ class ComplexityAnalyzer:
     def __init__(self, analyzer):
         self.a = analyzer
 
-    def analyze(self) -> List[Tuple[int, int, str, float]]:
+    def analyze(self) -> List[AnalysisResult]:
         results = []
         for func_ea, func in self.a._iter_functions():
             complexity = self._calculate_cyclomatic_complexity(func)

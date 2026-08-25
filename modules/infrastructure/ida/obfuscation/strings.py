@@ -15,6 +15,7 @@ from modules.infrastructure.ida.obfuscation.string_utils import (
     looks_like_utf16be,
     printable_ratio,
 )
+from modules.domain.results import AnalysisResult
 
 
 class EncryptedStringDetector:
@@ -27,13 +28,13 @@ class EncryptedStringDetector:
         if not hasattr(self.analyzer, "string_map"):
             self.analyzer.string_map = {}
 
-    def analyze(self) -> List[Tuple[int, int, str, float]]:
+    def analyze(self) -> List[AnalysisResult]:
         results = []
         for _func_ea, func in self._iter_functions():
             results.extend(self.analyze_function(func))
         return results
 
-    def analyze_function(self, func) -> List[Tuple[int, int, str, float]]:
+    def analyze_function(self, func) -> List[AnalysisResult]:
         results = []
         if not self._decrypt_funcs_built:
             self._find_decryption_functions()
@@ -242,7 +243,7 @@ class EncryptedStringDetector:
         text = text.replace("\x00", "")
         return text.strip()
 
-    def _find_stack_string_calls(self, func) -> List[Tuple[int, int, str, float]]:
+    def _find_stack_string_calls(self, func) -> List[AnalysisResult]:
         results = []
         for head in idautils.Heads(func.start_ea, func.end_ea):
             mnem = idc.print_insn_mnem(head).lower()
@@ -256,7 +257,7 @@ class EncryptedStringDetector:
                 ))
         return results
 
-    def _find_heap_string_calls(self, func) -> List[Tuple[int, int, str, float]]:
+    def _find_heap_string_calls(self, func) -> List[AnalysisResult]:
         results = []
         ret_reg = "rax"
         try:
