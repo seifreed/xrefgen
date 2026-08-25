@@ -72,8 +72,21 @@ class XrefGenPresenter:
         return legacy(items, title, 0)
 
     def configure_dialog(self):
-        info("Configuration dialog not yet implemented")
-        info("Edit xrefgen_config.json manually")
+        current = self.config.get("general.min_confidence", 0.5)
+        ask_str = getattr(ida_kernwin, "ask_str", None)
+        if ask_str is None:
+            info("Configuration UI unavailable; edit xrefgen_config.json manually")
+            return
+        value = ask_str(str(current), 0, "Minimum candidate confidence (0..1)")
+        if value is None:
+            return
+        try:
+            confidence = max(0.0, min(1.0, float(value)))
+        except (TypeError, ValueError):
+            info("Invalid confidence; keeping current value")
+            return
+        self.config.config.setdefault("general", {})["min_confidence"] = confidence
+        info(f"Minimum confidence set to {confidence:.2f} for this session")
 
     def show_statistics(self):
         stats = self.optimizer.get_statistics()
