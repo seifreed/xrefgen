@@ -1,9 +1,12 @@
 # XrefGen Corpus
 
 Each fixture has a ground-truth JSON file consumed by
-`scripts/compare_ground_truth.py`. Fixtures without a calibrated positive
-mapping use `negative_no_new_xrefs.ground_truth.json` as a duplicate-xref
-baseline; the ARM64 fixture is also retained as a concrete negative regression.
+`scripts/compare_ground_truth.py`. The calibrated positive mappings currently
+cover the direct call edges in `c_function_pointer`, `c_callback`,
+`c_jump_table`, `c_global_dispatch`, and `cpp_wrapper` (the latter four at
+`O0`). Fixtures without a calibrated positive mapping use
+`negative_no_new_xrefs.ground_truth.json` as a duplicate-xref baseline; the
+ARM64 fixture is also retained as a concrete positive regression.
 
 The symbolic positive fixture can be run inside IDA with
 `XREFGEN_ROOT=/path/to/xrefgen XREFGEN_EXPECTED_JSON=... scripts/ida_corpus_tests.py`;
