@@ -22,6 +22,7 @@ except ImportError:
     idaapi = None
 from modules import __version__
 from modules.domain.analyzer import XrefAnalyzer
+from modules.domain.results import deserialize_result, serialize_result
 from modules.infrastructure.ida.base import IDAXrefAnalyzer
 from modules.infrastructure.ida.utils.function_cache import FunctionBoundsCache
 
@@ -54,6 +55,7 @@ class PerformanceOptimizer:
         self._slow_functions = set()
         self._pending_function_hashes = None
         self.last_run_success = True
+        self._active_analyzer = None
 
         # Load existing cache
         self._load_cache()
@@ -121,7 +123,7 @@ class PerformanceOptimizer:
 
                     # Validate cache version and config
                     if (
-                        cache_data.get("version") == "3.0"
+                        cache_data.get("version") == "4.0"
                         and cache_data.get("config_hash") == self.config_hash
                         and cache_data.get("xrefgen_version") == self.xrefgen_version
                         and cache_data.get("ida_version") == self.ida_version
@@ -154,7 +156,7 @@ class PerformanceOptimizer:
 
         try:
             cache_data = {
-                "version": "3.0",
+                "version": "4.0",
                 "binary_hash": self.binary_hash,
                 "config_hash": self.config_hash,
                 "xrefgen_version": self.xrefgen_version,
@@ -253,8 +255,15 @@ class PerformanceOptimizer:
 
         self.analysis_cache[func_ea][module_name] = {
             "timestamp": time.time(),
-            "results": results,
+            "results": [serialize_result(result) for result in results],
         }
+
+    def cache_semantic_result(
+        self, func_ea: int, module_name: str, results: List, semantic: Optional[Dict] = None
+    ):
+        self.cache_analysis_result(func_ea, module_name, results)
+        if self.use_cache and semantic is not None:
+            self.analysis_cache[func_ea][module_name]["semantic"] = semantic
 
     def get_cached_result(self, func_ea: int, module_name: str) -> Optional[List]:
         if not self.use_cache:
@@ -268,9 +277,19 @@ class PerformanceOptimizer:
                     and time.time() - entry.get("timestamp", 0) > self.cache_ttl
                 ):
                     return None
-                return entry.get("results")
+                analyzer = getattr(self, "_active_analyzer", None)
+                if analyzer is not None and hasattr(analyzer, "restore_cached_semantic"):
+                    analyzer.restore_cached_semantic(func_ea, entry.get("semantic"))
+                return [deserialize_result(result) for result in entry.get("results", [])]
 
         return None
+
+    def invalidate_module_cache(self, module_name: str, functions: Set[int]):
+        for func_ea in functions:
+            module_cache = self.analysis_cache.get(func_ea, {})
+            module_cache.pop(module_name, None)
+            if not module_cache:
+                self.analysis_cache.pop(func_ea, None)
 
     def analyze_sequential(
         self,
@@ -318,9 +337,31 @@ class PerformanceOptimizer:
                 start_t = time.time()
 
                 # Execute with caching and thread-safe IDA orchestration
-                module_results, func_profile = self._run_analyzer_orchestrated(
-                    analyzer, target_funcs
-                )
+                self._active_analyzer = analyzer
+                if (
+                    modified_only
+                    and self.incremental
+                    and hasattr(analyzer, "prepare_incremental")
+                    and hasattr(analyzer, "run_incremental")
+                ):
+                    invalidated = analyzer.prepare_incremental(
+                        modified_functions,
+                        set(idautils.Functions()),
+                        self.analysis_cache,
+                    )
+                    self.invalidate_module_cache(name, invalidated)
+                    module_results, func_profile = analyzer.run_incremental(
+                        set(idautils.Functions()),
+                        invalidated,
+                        lambda ea: self.get_cached_result(ea, name),
+                        lambda ea, values, semantic: self.cache_semantic_result(
+                            ea, name, values, semantic
+                        ),
+                    )
+                else:
+                    module_results, func_profile = self._run_analyzer_orchestrated(
+                        analyzer, target_funcs
+                    )
 
                 elapsed = max(0.0, time.time() - start_t)
                 results[name] = module_results
@@ -338,6 +379,7 @@ class PerformanceOptimizer:
                 profile[name] = {"duration_sec": 0.0, "error": str(e)}
 
         self.last_profile = profile
+        self._active_analyzer = None
         return results
 
     def _run_analyzer_orchestrated(
@@ -388,7 +430,12 @@ class PerformanceOptimizer:
                     self._slow_functions.add(func_ea)
 
                 all_results.extend(func_results or [])
-                self.cache_analysis_result(func_ea, module_name, func_results or [])
+                semantic = None
+                if hasattr(analyzer, "get_semantic_cache"):
+                    semantic = analyzer.get_semantic_cache(func_ea)
+                self.cache_semantic_result(
+                    func_ea, module_name, func_results or [], semantic
+                )
         else:
             # Global analysis
             all_results = safe_execute(analyzer.analyze)

@@ -1,4 +1,11 @@
-from modules.domain.results import Finding, Relationship, ResultStore, XrefCandidate
+from modules.domain.results import (
+    Finding,
+    Relationship,
+    ResultStore,
+    XrefCandidate,
+    deserialize_result,
+    serialize_result,
+)
 
 
 def test_result_store_exports_only_valid_control_flow_and_deduplicates():
@@ -55,3 +62,9 @@ def test_explicit_result_roles_do_not_depend_on_kind_strings():
     assert not store.add_result(relationship)
     assert len(store.findings) == 1
     assert len(store.relationships) == 1
+
+
+def test_typed_results_round_trip_through_json_payload():
+    result = XrefCandidate(1, 2, "indirect_call", 0.8, "DataFlow", ("taint",))
+    restored = deserialize_result(serialize_result(result))
+    assert restored == result

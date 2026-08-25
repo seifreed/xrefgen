@@ -1,7 +1,7 @@
 """Typed result collection for analysis modules."""
 
 from dataclasses import dataclass, field
-from typing import Callable, Dict, Iterable, List, Optional, Tuple, Union
+from typing import Any, Callable, Dict, Iterable, List, Optional, Tuple, Union
 
 
 CONTROL_FLOW_TYPES = frozenset(
@@ -74,6 +74,47 @@ class Relationship:
 
 AnalysisResult = Union[XrefCandidate, Finding, Relationship]
 RESULT_TYPES = (XrefCandidate, Finding, Relationship)
+
+
+def serialize_result(result: Any) -> Any:
+    """Serialize an explicitly typed analysis result for the JSON cache."""
+    if not isinstance(result, RESULT_TYPES):
+        return result
+    role = {
+        XrefCandidate: "candidate",
+        Finding: "finding",
+        Relationship: "relationship",
+    }[type(result)]
+    return {
+        "role": role,
+        "source": result.source,
+        "target": result.target,
+        "kind": result.kind,
+        "confidence": result.confidence,
+        "module": result.module,
+        "evidence": list(result.evidence),
+    }
+
+
+def deserialize_result(payload: Any) -> Any:
+    """Restore a cached typed result; preserve non-result test metadata."""
+    if not isinstance(payload, dict) or payload.get("role") not in {
+        "candidate", "finding", "relationship"
+    }:
+        return payload
+    result_type = {
+        "candidate": XrefCandidate,
+        "finding": Finding,
+        "relationship": Relationship,
+    }[payload["role"]]
+    return result_type(
+        int(payload["source"]),
+        int(payload["target"]),
+        str(payload["kind"]),
+        float(payload["confidence"]),
+        str(payload.get("module", "")),
+        tuple(payload.get("evidence", ())),
+    )
 
 
 @dataclass

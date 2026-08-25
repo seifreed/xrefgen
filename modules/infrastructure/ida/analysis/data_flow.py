@@ -3,7 +3,7 @@ Enhanced Data Flow Analysis Module
 Tracks data flow from sources to sinks, return value propagation, and pointer chains
 """
 
-from typing import Dict, List, Tuple, Set, Optional
+from typing import Any, Callable, Dict, List, Tuple, Set, Optional
 import idaapi
 
 try:
@@ -43,6 +43,7 @@ from modules.infrastructure.ida.analysis.call_policies import (
     SanitizerPolicy,
     TaintCarryPolicy,
 )
+from modules.domain.results import AnalysisResult
 from collections import deque
 import time
 
@@ -91,9 +92,8 @@ class DataFlowAnalyzer(IncrementalAnalyzer):
 
     def __init__(self, config: Dict = None):
         super().__init__(config)
-        # Taint state is interprocedural and cannot be reconstructed from tuple caches.
-        self.supports_incremental = False
-        self.analysis_scope = "global"
+        self.supports_incremental = True
+        self.analysis_scope = "function"
         def configured_names(key, default):
             return {normalize_name(value) for value in config.get(key, default)}
 
@@ -256,6 +256,10 @@ class DataFlowAnalyzer(IncrementalAnalyzer):
         self._has_get_sp_val = hasattr(idc, "get_sp_val")
         self._ip_cache = set()
         self._pending_control_flow_results = []
+        self._function_dependencies: Dict[int, Set[int]] = {}
+        self._reverse_dependencies: Dict[int, Set[int]] = {}
+        self._incremental_functions: Set[int] = set()
+        self._max_fixpoint_iterations = 8
 
     def _iter_functions(self):
         """Yield (func_ea, func) for all valid functions."""
@@ -277,7 +281,7 @@ class DataFlowAnalyzer(IncrementalAnalyzer):
     def get_name(self) -> str:
         return "DataFlowAnalyzer"
 
-    def analyze(self) -> List[Tuple[int, int, str, float]]:
+    def analyze(self) -> List[AnalysisResult]:
         self.reset_analysis_state()
         return super().analyze()
 
@@ -301,6 +305,167 @@ class DataFlowAnalyzer(IncrementalAnalyzer):
         self._block_rd_in.clear()
         self._ip_cache.clear()
         self._pending_control_flow_results = []
+        self._function_dependencies.clear()
+        self._reverse_dependencies.clear()
+
+    def _reset_function_state(self, func_ea: int):
+        """Drop only state owned by one function before re-analysis."""
+        for state in (
+            self.tainted_regs,
+            self.tainted_mem,
+            self.taint_kinds_regs,
+            self.taint_kinds_mem,
+            self.taint_payload_regs,
+            self.return_values,
+            self.taint_summaries,
+            self.taint_summaries_arg,
+            self.taint_summaries_mem,
+            self._heap_aliases,
+            self._mem_intervals,
+            self._block_out_states,
+            self._block_kind_states,
+            self._block_last_defs,
+            self._block_rd_in,
+        ):
+            state.pop(func_ea, None)
+        for key in list(self.taint_kind_xrefs):
+            if key[0] == func_ea:
+                self.taint_kind_xrefs.pop(key, None)
+        self._ip_cache = {
+            key for key in self._ip_cache if not key or key[0] != func_ea
+        }
+        self._pending_control_flow_results = []
+
+    def _semantic_snapshot(self, func_ea: int):
+        return self.get_semantic_cache(func_ea)
+
+    def get_semantic_cache(self, func_ea: int) -> Dict[str, Any]:
+        """Return the serializable interprocedural contract of one function."""
+        return {
+            "version": 1,
+            "dependencies": sorted(self._function_dependencies.get(func_ea, set())),
+            "return_values": list(self.return_values.get(func_ea, ())),
+            "arg_to_return": sorted(self.taint_summaries.get(func_ea, set())),
+            "arg_to_arg": {
+                key: sorted(value)
+                for key, value in self.taint_summaries_arg.get(func_ea, {}).items()
+            },
+            "arg_to_mem": sorted(self.taint_summaries_mem.get(func_ea, set())),
+        }
+
+    def restore_cached_semantic(self, func_ea: int, semantic: Optional[Dict[str, Any]]):
+        if not isinstance(semantic, dict) or semantic.get("version") != 1:
+            return
+        self._function_dependencies[func_ea] = {
+            int(value) for value in semantic.get("dependencies", ())
+        }
+        if semantic.get("return_values"):
+            self.return_values[func_ea] = tuple(semantic["return_values"])
+        arg_to_return = set(semantic.get("arg_to_return", ()))
+        if arg_to_return:
+            self.taint_summaries[func_ea] = arg_to_return
+        arg_to_arg = semantic.get("arg_to_arg", {})
+        if arg_to_arg:
+            self.taint_summaries_arg[func_ea] = {
+                str(key): set(values) for key, values in arg_to_arg.items()
+            }
+        arg_to_mem = set(semantic.get("arg_to_mem", ()))
+        if arg_to_mem:
+            self.taint_summaries_mem[func_ea] = arg_to_mem
+
+    def _discover_dependencies(self, func_ea: int):
+        func = ida_funcs.get_func(func_ea)
+        if not func:
+            return set()
+        dependencies = set()
+        for head in idautils.Heads(func.start_ea, func.end_ea):
+            try:
+                for xref in idautils.XrefsFrom(head, 0):
+                    if xref.type not in (ida_xref.fl_CN, ida_xref.fl_CF):
+                        continue
+                    callee = ida_funcs.get_func(xref.to)
+                    if callee and callee.start_ea != func_ea:
+                        dependencies.add(callee.start_ea)
+            except (TypeError, ValueError, AttributeError, RuntimeError):
+                continue
+        self._function_dependencies[func_ea] = dependencies
+        return dependencies
+
+    def prepare_incremental(
+        self,
+        modified_functions: Set[int],
+        all_functions: Set[int],
+        analysis_cache: Dict[int, Dict[str, Any]],
+    ) -> Set[int]:
+        """Restore summaries and compute the caller invalidation closure."""
+        self._incremental_functions = set(all_functions)
+        for func_ea, modules in analysis_cache.items():
+            entry = modules.get(self.get_name(), {}) if isinstance(modules, dict) else {}
+            if isinstance(entry, dict):
+                self.restore_cached_semantic(func_ea, entry.get("semantic"))
+        for func_ea in sorted(all_functions):
+            self._discover_dependencies(func_ea)
+        self._reverse_dependencies = {func_ea: set() for func_ea in all_functions}
+        for caller, callees in self._function_dependencies.items():
+            for callee in callees:
+                self._reverse_dependencies.setdefault(callee, set()).add(caller)
+
+        invalidated = set(modified_functions) & set(all_functions)
+        queue = list(invalidated)
+        while queue:
+            callee = queue.pop()
+            for caller in self._reverse_dependencies.get(callee, set()):
+                if caller not in invalidated:
+                    invalidated.add(caller)
+                    queue.append(caller)
+        return invalidated
+
+    def run_incremental(
+        self,
+        all_functions: Set[int],
+        invalidated: Set[int],
+        get_cached: Callable[[int], Optional[List[AnalysisResult]]],
+        cache_result: Callable[[int, List[AnalysisResult], Dict[str, Any]], None],
+    ) -> Tuple[List[AnalysisResult], Dict[str, float]]:
+        """Run changed functions and callers until semantic summaries converge."""
+        pending = set(invalidated)
+        profile: Dict[str, float] = {}
+        final_results: List[AnalysisResult] = []
+        for _iteration in range(self._max_fixpoint_iterations):
+            changed = set()
+            current_results: List[AnalysisResult] = []
+            for func_ea in sorted(all_functions):
+                if func_ea not in pending:
+                    cached = get_cached(func_ea)
+                    if cached is not None:
+                        current_results.extend(cached)
+                        continue
+                    pending.add(func_ea)
+                func = ida_funcs.get_func(func_ea)
+                if not func:
+                    continue
+                before = self._semantic_snapshot(func_ea)
+                self._reset_function_state(func_ea)
+                started = time.time()
+                values = self.analyze_function(func)
+                profile[f"0x{func_ea:x}"] = max(0.0, time.time() - started)
+                self._discover_dependencies(func_ea)
+                semantic = self.get_semantic_cache(func_ea)
+                cache_result(func_ea, values, semantic)
+                current_results.extend(values)
+                if before != semantic:
+                    changed.add(func_ea)
+            next_pending = set()
+            for callee in changed:
+                next_pending.update(self._reverse_dependencies.get(callee, set()))
+            if not next_pending:
+                final_results = current_results
+                break
+            pending = next_pending
+            final_results = current_results
+        else:
+            raise RuntimeError("DataFlow interprocedural fixpoint did not converge")
+        return final_results, profile
 
     def _build_tuning_table(self, config: Dict) -> Dict:
         table = {}
@@ -311,9 +476,9 @@ class DataFlowAnalyzer(IncrementalAnalyzer):
             table.setdefault(key, val)
         return table
 
-    def analyze_function(self, func) -> List[Tuple[int, int, str, float]]:
+    def analyze_function(self, func) -> List[AnalysisResult]:
         """Incremental per-function analysis."""
-        results: List[Tuple[int, int, str, float]] = []
+        results: List[AnalysisResult] = []
         self._pending_control_flow_results = []
         func_ea = func.start_ea
         deadline = None
