@@ -136,7 +136,7 @@ with tempfile.TemporaryDirectory(prefix="xrefgen-observability-") as output_dir:
     orchestrator_cfg = copy.deepcopy(cfg)
     general = orchestrator_cfg.setdefault("general", {})
     general.update({
-        "log_file": None,
+        "log_file": os.path.join(output_dir, "xrefgen.jsonl"),
         "output_name_mode": "custom",
         "output_file": os.path.join(output_dir, "xrefs.txt"),
         "details_output_file": os.path.join(output_dir, "details.txt"),
@@ -188,6 +188,14 @@ with tempfile.TemporaryDirectory(prefix="xrefgen-observability-") as output_dir:
             raise AssertionError(f"Orchestrator did not write {artifact}")
     if not any(event.get("event_name") == "results.artifact_written" for event in orchestrator_events):
         raise AssertionError("Artifact output events were not emitted")
+    with open(general["log_file"], encoding="utf-8") as log_file:
+        file_events = [json.loads(line) for line in log_file]
+    if not any(
+        event.get("event_name") == "analysis.finished"
+        and event.get("correlation_id") == started_event["correlation_id"]
+        for event in file_events
+    ):
+        raise AssertionError("Configured JSONL sink omitted the correlated completion event")
 
 print("[IDA Real Tests] OK: orchestrator events correlated and artifacts written")
 
