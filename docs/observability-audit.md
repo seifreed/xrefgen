@@ -32,10 +32,12 @@ Evidence through commits `21ad6a1` and `d72d6ca` (building on the earlier commit
 | Structure and consistency | 8 | JSON UTC schema with optional structured fields; component is currently always `xrefgen`. |
 | Context and correlation | 5 | A per-run correlation ID and operation are scoped with `ContextVar`; no distributed tracing is justified for the current single-process design. |
 | Security and privacy | 6 | Common credentials, bearer values, private keys and controls are redacted; broader sensitive-data review remains. |
-| Performance and resilience | 7 | Standard handler locking and bounded rotation; no benchmark or IDA-thread impact measurement. |
+| Performance and resilience | 8 | 20,000-event in-memory benchmark: JSON INFO ~48,987 events/s, filtered DEBUG ~3,901,328 calls/s; bounded rotation and non-fatal file sink. IDA-thread impact remains unmeasured. |
 | Configuration and portability | 6 | Invalid level/file sink fall back with a structured warning; no environment selector or retention configuration beyond fixed bounds. |
 | Error handling | 7 | Analysis boundary logs uncaught exceptions with sanitized stack and re-raises; remaining best-effort catches require review. |
 | Testing and verification | 7 | 38 maintained tests across logger, module events, config, registry, cache, results, corpus, taint, and wasm pass; global suite includes conflicting untracked tests, and IDA runtime tests are not run. |
-| **Provisional mean** | **6.6** | **66 / 10 dimensions; not final or release-ready** |
+| **Provisional mean** | **6.7** | **67 / 10 dimensions; not final or release-ready** |
 
 Do not use the provisional score as a completion claim. A final score requires resolving the remaining gaps, running the maintained test suite, and verifying the plugin lifecycle in IDA or documenting a genuine environment limitation.
+
+The throughput figures above are a local CPython 3.14 microbenchmark writing JSON to `io.StringIO`; they are comparative evidence for the formatter/filter path only, not a production workload or IDA performance certification.
