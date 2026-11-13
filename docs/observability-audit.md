@@ -22,13 +22,13 @@ The baseline is the repository state before commit `00a57e0` (logger source in i
 
 ## Current in-progress score
 
-Evidence through commits `a11293e`, `78a9c37`, and `5de669f` (building on the earlier commits listed in git history): standard-library logging, JSON UTC records and structured fields, TRACE–FATAL levels, bounded rotating file output, credential/control-character/private-key redaction, observable configuration fallback, concurrent and sink-failure tests, sanitized exception type/stack, scoped analysis correlation, plugin shutdown and launch failure logging, and lifecycle/module/cache/analyzer instrumentation. The most recent focused maintained test selection passed 22 tests; an earlier explicitly selected tracked set passed 31. Many locally present test files are untracked and should not be treated as repository-owned baseline tests.
+Evidence through commit `3a97a59` (building on the earlier commits listed in git history): standard-library logging, JSON UTC records and structured fields, TRACE–FATAL levels, bounded rotating file output, credential/control-character/private-key redaction, observable configuration fallback, concurrent and sink-failure tests, sanitized exception type/stack, scoped analysis correlation, plugin shutdown and launch failure logging, and lifecycle/module/cache/analyzer instrumentation. The latest focused maintained selection passed 24 tests; earlier selected tracked tests passed 31. Many locally present test files are untracked and should not be treated as repository-owned baseline tests.
 
 | Dimension | Current | Remaining evidence/gap |
 |---|---:|---|
 | Architecture and decoupling | 6 | Shared logger used broadly; validate layering/import behavior inside IDA and component attribution. |
-| Functional coverage | 6 | Most diagnostics migrated; audit all error paths and run representative IDA analyses. |
-| Event quality | 6 | Analysis start/finish/failure carry stable event names, outcome and duration; many other events remain free-form. |
+| Functional coverage | 7 | Application and optimized module executions emit lifecycle events; remaining best-effort catches and IDA run need review. |
+| Event quality | 7 | Analysis and module lifecycle events carry stable names, outcome, duration, and result counts; other events remain free-form. |
 | Structure and consistency | 8 | JSON UTC schema with optional structured fields; component is currently always `xrefgen`. |
 | Context and correlation | 5 | A per-run correlation ID and operation are scoped with `ContextVar`; no distributed tracing is justified for the current single-process design. |
 | Security and privacy | 6 | Common credentials, bearer values, private keys and controls are redacted; broader sensitive-data review remains. |
@@ -36,6 +36,6 @@ Evidence through commits `a11293e`, `78a9c37`, and `5de669f` (building on the ea
 | Configuration and portability | 6 | Invalid level/file sink fall back with a structured warning; no environment selector or retention configuration beyond fixed bounds. |
 | Error handling | 7 | Analysis boundary logs uncaught exceptions with sanitized stack and re-raises; remaining best-effort catches require review. |
 | Testing and verification | 6 | 31 explicitly selected tracked tests pass; global suite is polluted by untracked tests, and IDA runtime tests are not run. |
-| **Provisional mean** | **6.3** | **63 / 10 dimensions; not final or release-ready** |
+| **Provisional mean** | **6.5** | **65 / 10 dimensions; not final or release-ready** |
 
 Do not use the provisional score as a completion claim. A final score requires resolving the remaining gaps, running the maintained test suite, and verifying the plugin lifecycle in IDA or documenting a genuine environment limitation.
