@@ -31,18 +31,31 @@ def _sanitize(value):
 
 
 class _JsonFormatter(logging.Formatter):
-    def format(self, record):
+    def event(self, record):
         event = {
             "timestamp": datetime.fromtimestamp(record.created, timezone.utc).isoformat(),
             "level": {"warning": "warn", "critical": "fatal"}.get(record.levelname.lower(), record.levelname.lower()), "service": "xrefgen",
-            "component": record.name.rsplit(".", 1)[-1], "message": _sanitize(record.getMessage()),
+            "component": _sanitize(record.module), "message": _sanitize(record.getMessage()),
         }
         if record.exc_info:
             event["error_type"] = record.exc_info[0].__name__
             event["stack_trace"] = _sanitize(self.formatException(record.exc_info))
         event.update(_event_context.get() or {})
         event.update(getattr(record, "xrefgen_fields", {}))
+        return event
+
+    def format(self, record):
+        event = self.event(record)
         return json.dumps(event, ensure_ascii=True)
+
+
+class _TextFormatter(_JsonFormatter):
+    def format(self, record):
+        event = self.event(record)
+        common = {"timestamp", "level", "service", "component", "message"}
+        fields = {key: value for key, value in event.items() if key not in common}
+        suffix = " " + json.dumps(fields, sort_keys=True) if fields else ""
+        return f"{event['timestamp']} {event['level'].upper()} [{event['component']}] {event['message']}{suffix}"
 
 
 class _SafeRotatingFileHandler(RotatingFileHandler):
@@ -52,10 +65,11 @@ class _SafeRotatingFileHandler(RotatingFileHandler):
         return
 
 
-def configure(log_file: Optional[str], level: str = "info"):
-    """Configure stdout and optional size-bounded UTF-8 JSON file output."""
+def configure(log_file: Optional[str], level: str = "info", log_format: str = "json"):
+    """Configure stdout and optional size-bounded UTF-8 file output."""
     global _log_file, _level
     level_name = str(level).lower()
+    format_name = str(log_format).lower()
     selected = _LEVELS.get(level_name, _LEVELS["info"])
     shutdown()
     _logger.setLevel(selected)
@@ -64,6 +78,9 @@ def configure(log_file: Optional[str], level: str = "info"):
     warnings = []
     if level_name not in _LEVELS:
         warnings.append(f"Unsupported log level {level_name!r}; using info")
+    if format_name not in {"json", "text"}:
+        warnings.append(f"Unsupported log format {format_name!r}; using json")
+        format_name = "json"
     if log_file:
         try:
             handler = _SafeRotatingFileHandler(log_file, maxBytes=5_000_000, backupCount=3, encoding="utf-8")
@@ -71,8 +88,9 @@ def configure(log_file: Optional[str], level: str = "info"):
         except OSError as exc:
             warnings.append(f"File logging unavailable ({type(exc).__name__}); using console")
             log_file = None
+    formatter = _JsonFormatter() if format_name == "json" else _TextFormatter()
     for handler in _logger.handlers:
-        handler.setFormatter(_JsonFormatter())
+        handler.setFormatter(formatter)
     _log_file = log_file
     for message in warnings:
         warn(message, event_name="logging.configuration_warning")
@@ -94,7 +112,7 @@ def _emit(level_name: str, msg: str, exc_info=False, **fields):
             normalized[key] = "[REDACTED]"
         if isinstance(normalized[key], str):
             normalized[key] = _sanitize(normalized[key])
-    _logger.log(_LEVELS[level_name], _sanitize(msg), exc_info=exc_info, extra={"xrefgen_fields": normalized})
+    _logger.log(_LEVELS[level_name], _sanitize(msg), exc_info=exc_info, stacklevel=3, extra={"xrefgen_fields": normalized})
 
 
 def trace(msg: str, **fields): _emit("trace", msg, **fields)

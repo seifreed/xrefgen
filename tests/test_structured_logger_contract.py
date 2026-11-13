@@ -109,6 +109,7 @@ def test_structured_event_fields_are_safe_and_normalized(capsys):
     assert event["event_name"] == "analysis.finished"
     assert event["duration_ms"] == 2.5
     assert event["token"] == "[REDACTED]"
+    assert event["component"] == "test_structured_logger_contract"
 
 
 def test_nested_fields_are_omitted_to_prevent_unreviewed_payload_logging(capsys):
@@ -117,6 +118,17 @@ def test_nested_fields_are_omitted_to_prevent_unreviewed_payload_logging(capsys)
     event = json.loads(capsys.readouterr().out)
     assert "details" not in event
     assert "private-value" not in json.dumps(event)
+
+
+def test_text_format_preserves_redaction_and_structured_context(capsys):
+    logger.configure(None, "info", "text")
+    with logger.operation_context("analysis", "correlation-1"):
+        logger.info("password=hunter2", event_name="analysis.finished")
+    line = capsys.readouterr().out
+    assert "hunter2" not in line
+    assert "INFO [test_structured_logger_contract]" in line
+    assert '"correlation_id": "correlation-1"' in line
+    assert '"event_name": "analysis.finished"' in line
 
 
 def test_reserved_fields_are_ignored_without_affecting_logging(capsys):

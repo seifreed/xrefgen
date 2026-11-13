@@ -31,6 +31,7 @@ class Config:
             "rejections_output_file": "_xrefgen_rejections.json",
             "log_file": None,
             "log_level": "info",
+            "log_format": "json",
         },
         "modules": {
             "data_flow": {
@@ -270,6 +271,7 @@ class Config:
                 "csv_output_file": None,
                 "log_file": None,
                 "log_level": None,
+                "log_format": None,
                 "profile_output_file": None,
                 "include_taint_kind": None,
                 "taint_kind_output_file": None,

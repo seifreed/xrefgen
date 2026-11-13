@@ -52,6 +52,7 @@ class XrefGen:
         logger.configure(
             self.config.get("general.log_file"),
             self.config.get("general.log_level", "info"),
+            self.config.get("general.log_format", "json"),
         )
 
         # Initialize performance optimizer
