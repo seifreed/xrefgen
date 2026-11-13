@@ -43,6 +43,7 @@ class XrefGen:
 
     def __init__(self, config_file: str = None):
         """Initialize XrefGen with configuration"""
+        logger.configure(None)
         _info(f"XrefGen v{__version__} initialized")
 
         # Load configuration
