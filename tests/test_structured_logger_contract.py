@@ -135,3 +135,13 @@ def test_invalid_file_destination_warns_and_keeps_console(capsys, tmp_path):
     assert events[0]["event_name"] == "logging.configuration_warning"
     assert "File logging unavailable" in events[0]["message"]
     assert logger._log_file is None
+
+
+def test_filtered_debug_skips_sanitization(monkeypatch):
+    logger.configure(None, "info")
+
+    def should_not_run(_value):
+        raise AssertionError("filtered log message was formatted")
+
+    monkeypatch.setattr(logger, "_sanitize", should_not_run)
+    logger.debug("disabled diagnostic", token="sensitive")

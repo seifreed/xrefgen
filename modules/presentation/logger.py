@@ -79,6 +79,8 @@ def configure(log_file: Optional[str], level: str = "info"):
 
 
 def _emit(level_name: str, msg: str, exc_info=False, **fields):
+    if _LEVELS[level_name] < _logger.getEffectiveLevel():
+        return
     normalized = {}
     for key, value in fields.items():
         if not re.fullmatch(r"[a-z][a-z0-9_]{0,63}", key) or key in {"timestamp", "level", "service", "component", "message", "stack_trace"}:
