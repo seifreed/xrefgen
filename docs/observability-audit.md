@@ -35,7 +35,7 @@ Evidence through commits `ace5ab2`, `b0c753a`, `1b7f868`, `1115c82`, and `dbe173
 | Performance and resilience | 8 | 20,000-event in-memory benchmark: JSON INFO ~48,987 events/s, filtered DEBUG ~3,901,328 calls/s; bounded rotation and non-fatal file sink. IDA-thread impact remains unmeasured. |
 | Configuration and portability | 6 | Invalid level/file sink fall back with a structured warning; no environment selector or retention configuration beyond fixed bounds. |
 | Error handling | 7 | Analysis boundary logs uncaught exceptions with sanitized stack and re-raises; remaining best-effort catches require review. |
-| Testing and verification | 7 | 39 maintained tests across logger (including file rotation), module events, config, registry, cache, results, corpus, taint, and wasm pass; global suite includes conflicting untracked tests, and IDA runtime tests are not run. |
+| Testing and verification | 7 | 39 maintained tests across logger (including file rotation), module events, config, registry, cache, results, corpus, taint, and wasm pass; the IDA smoke test now asserts correlated JSON lifecycle events but has not been run here. |
 | **Provisional mean** | **7.0** | **70 / 10 dimensions; not final or release-ready** |
 
 Do not use the provisional score as a completion claim. A final score requires resolving the remaining gaps, running the maintained test suite, and verifying the plugin lifecycle in IDA or documenting a genuine environment limitation.
