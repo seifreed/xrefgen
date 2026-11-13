@@ -22,7 +22,7 @@ The baseline is the repository state before commit `00a57e0` (logger source in i
 
 ## Current in-progress score
 
-Evidence through commit `0f5b3cb` plus follow-up commits `e2594d7` and `b9c2df1`: standard-library logging, JSON UTC records, TRACE–FATAL levels, bounded rotating file output, basic credential/control-character/private-key redaction, file-sink fallback, concurrent event test, sanitized exception type/stack, plugin shutdown flush, and broader lifecycle/module/cache/analyzer instrumentation. The explicitly selected tracked test set passed 29 tests. Many locally present test files are untracked and should not be treated as repository-owned baseline tests.
+Evidence through commits `a11293e`, `78a9c37`, and `5de669f` (building on the earlier commits listed in git history): standard-library logging, JSON UTC records and structured fields, TRACE–FATAL levels, bounded rotating file output, credential/control-character/private-key redaction, observable configuration fallback, concurrent and sink-failure tests, sanitized exception type/stack, scoped analysis correlation, plugin shutdown and launch failure logging, and lifecycle/module/cache/analyzer instrumentation. The most recent focused maintained test selection passed 22 tests; an earlier explicitly selected tracked set passed 31. Many locally present test files are untracked and should not be treated as repository-owned baseline tests.
 
 | Dimension | Current | Remaining evidence/gap |
 |---|---:|---|
@@ -33,9 +33,9 @@ Evidence through commit `0f5b3cb` plus follow-up commits `e2594d7` and `b9c2df1`
 | Context and correlation | 5 | A per-run correlation ID and operation are scoped with `ContextVar`; no distributed tracing is justified for the current single-process design. |
 | Security and privacy | 6 | Common credentials, bearer values, private keys and controls are redacted; broader sensitive-data review remains. |
 | Performance and resilience | 7 | Standard handler locking and bounded rotation; no benchmark or IDA-thread impact measurement. |
-| Configuration and portability | 5 | Level and file sink supported; no environment selector or retention configuration beyond fixed bounds. |
+| Configuration and portability | 6 | Invalid level/file sink fall back with a structured warning; no environment selector or retention configuration beyond fixed bounds. |
 | Error handling | 7 | Analysis boundary logs uncaught exceptions with sanitized stack and re-raises; remaining best-effort catches require review. |
 | Testing and verification | 6 | 31 explicitly selected tracked tests pass; global suite is polluted by untracked tests, and IDA runtime tests are not run. |
-| **Provisional mean** | **6.2** | **62 / 10 dimensions; not final or release-ready** |
+| **Provisional mean** | **6.3** | **63 / 10 dimensions; not final or release-ready** |
 
 Do not use the provisional score as a completion claim. A final score requires resolving the remaining gaps, running the maintained test suite, and verifying the plugin lifecycle in IDA or documenting a genuine environment limitation.
