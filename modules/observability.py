@@ -216,17 +216,20 @@ def exception(msg: str, **fields):
 
 def shutdown():
     """Flush and close configured sinks during plugin termination."""
-    for handler in _logger.handlers[:]:
+    handlers = sorted(_logger.handlers[:], key=lambda item: isinstance(item, _SafeStreamHandler))
+    for handler in handlers:
         try:
             handler.flush()
-        except (OSError, ValueError):
-            pass
+        except Exception:
+            if isinstance(handler, _SafeRotatingFileHandler):
+                handler.handleError(None)
         finally:
             _logger.removeHandler(handler)
             try:
                 handler.close()
-            except (OSError, ValueError):
-                pass
+            except Exception:
+                if isinstance(handler, _SafeRotatingFileHandler):
+                    handler.handleError(None)
 
 
 @contextmanager

@@ -118,6 +118,27 @@ def test_file_write_failure_warns_once_without_leaking_error(capsys, tmp_path):
     assert "file-private" not in output.err
 
 
+def test_shutdown_flush_failure_warns_once_without_leaking_error(capsys, tmp_path):
+    logger.configure(str(tmp_path / "events.log"), "info")
+
+    class BrokenFlushStream:
+        def flush(self):
+            raise OSError("token=shutdown-private")
+
+        def close(self):
+            pass
+
+    logger._logger.handlers[1].stream = BrokenFlushStream()
+    logger.shutdown()
+    output = capsys.readouterr()
+    events = [json.loads(line) for line in output.out.splitlines()]
+    failures = [event for event in events if event.get("event_name") == "logging.sink_failed"]
+    assert len(failures) == 1
+    assert failures[0]["error_type"] == "OSError"
+    assert "shutdown-private" not in output.out
+    assert "shutdown-private" not in output.err
+
+
 def test_console_write_failure_does_not_raise_or_leak(capsys):
     logger.configure(None, "info")
 
