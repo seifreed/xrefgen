@@ -8,7 +8,7 @@ import idaapi
 import idautils
 import idc
 import ida_funcs
-from modules.observability import info
+from modules.observability import debug, info
 try:
     import ida_hexrays
 except (TypeError, ValueError, AttributeError, RuntimeError):
@@ -425,8 +425,8 @@ class GraphAnalyzer(IncrementalAnalyzer):
                     return "go"
                 if "rust" in name:
                     return "rust"
-        except (TypeError, ValueError, AttributeError, RuntimeError):
-            pass
+        except (TypeError, ValueError, AttributeError, RuntimeError) as exc:
+            debug("Could not infer graph compiler profile from segments", error_type=type(exc).__name__)
         # Fall back to function names
         try:
             for func_ea in sorted(idautils.Functions()):
@@ -439,8 +439,8 @@ class GraphAnalyzer(IncrementalAnalyzer):
                     return "go"
                 if name.startswith("_ZN") or name.startswith("core::"):
                     return "rust"
-        except (TypeError, ValueError, AttributeError, RuntimeError):
-            pass
+        except (TypeError, ValueError, AttributeError, RuntimeError) as exc:
+            debug("Could not infer graph compiler profile from function names", error_type=type(exc).__name__)
         return "unknown"
 
     def _compiler_conf_multiplier(self, target_ea: int) -> float:

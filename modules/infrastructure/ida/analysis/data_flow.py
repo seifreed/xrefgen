@@ -35,7 +35,7 @@ from modules.infrastructure.ida.analysis.components import (
 from modules.infrastructure.ida.analysis.taint_rules import TaintRules
 from modules.infrastructure.ida.analysis.sink_policy import SinkPolicy
 from modules.infrastructure.ida.analysis.interprocedural import InterproceduralSummaries
-from modules.observability import warn
+from modules.observability import debug, warn
 from modules.infrastructure.ida.analysis.call_policies import (
     CallInfo,
     TaintSourcePolicy,
@@ -250,8 +250,8 @@ class DataFlowAnalyzer(IncrementalAnalyzer):
             func_count = len(list(idautils.Functions()))
             if func_count > 5000:
                 self.sink_min_confidence = max(self.sink_min_confidence, 0.65)
-        except (TypeError, ValueError, AttributeError, RuntimeError):
-            pass
+        except (TypeError, ValueError, AttributeError, RuntimeError) as exc:
+            debug("Could not inspect database size for taint confidence tuning", error_type=type(exc).__name__)
         # Some IDA versions (including 9.1 Python API) do not expose idc.get_sp_val
         # Guard stack taint tracking accordingly
         self._has_get_sp_val = hasattr(idc, "get_sp_val")
@@ -516,8 +516,8 @@ class DataFlowAnalyzer(IncrementalAnalyzer):
                 self._max_depth_override = min(
                     self._max_depth_override or scaled, scaled
                 )
-        except (TypeError, ValueError, AttributeError, RuntimeError):
-            pass
+        except (TypeError, ValueError, AttributeError, RuntimeError) as exc:
+            debug("Could not inspect function CFG complexity", error_type=type(exc).__name__)
         try:
             if blocks:
                 edges = 0
@@ -552,8 +552,8 @@ class DataFlowAnalyzer(IncrementalAnalyzer):
                         self._max_depth_override = min(
                             self._max_depth_override or scaled, scaled
                         )
-        except (TypeError, ValueError, AttributeError, RuntimeError):
-            pass
+        except (TypeError, ValueError, AttributeError, RuntimeError) as exc:
+            debug("Could not inspect function CFG topology", error_type=type(exc).__name__)
         try:
             # Local taint propagation inside function
             self._analyze_function_taint(func_ea, deadline)
@@ -1316,8 +1316,8 @@ class DataFlowAnalyzer(IncrementalAnalyzer):
                     return "go"
                 if "rust" in name:
                     return "rust"
-        except (TypeError, ValueError, AttributeError, RuntimeError):
-            pass
+        except (TypeError, ValueError, AttributeError, RuntimeError) as exc:
+            debug("Could not infer compiler profile from segments", error_type=type(exc).__name__)
         try:
             for func_ea in sorted(idautils.Functions()):
                 name = idc.get_func_name(func_ea)
@@ -1329,8 +1329,8 @@ class DataFlowAnalyzer(IncrementalAnalyzer):
                     return "go"
                 if name.startswith("_ZN") or name.startswith("core::"):
                     return "rust"
-        except (TypeError, ValueError, AttributeError, RuntimeError):
-            pass
+        except (TypeError, ValueError, AttributeError, RuntimeError) as exc:
+            debug("Could not infer compiler profile from function names", error_type=type(exc).__name__)
         return "unknown"
 
     def _is_reg_tainted_near_call(self, call_ea: int, reg: str, func) -> bool:
@@ -1489,8 +1489,8 @@ class DataFlowAnalyzer(IncrementalAnalyzer):
                                 ValueError,
                                 AttributeError,
                                 RuntimeError,
-                            ):
-                                pass
+                            ) as exc:
+                                debug("Could not inspect tainted sink arguments", error_type=type(exc).__name__)
                 except (TypeError, ValueError, AttributeError, RuntimeError):
                     pass
                 return 0
