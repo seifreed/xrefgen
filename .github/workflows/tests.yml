@@ -9,6 +9,25 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  observability:
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-22.04
+            python-version: "3.9"
+          - os: windows-2022
+            python-version: "3.12"
+          - os: macos-14
+            python-version: "3.12"
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - run: python -m pip install --upgrade pytest
+      - run: python -m pytest -q tests/test_structured_logger_contract.py tests/test_logging_integration.py
+
   python:
     strategy:
       matrix:
