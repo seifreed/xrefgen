@@ -143,3 +143,13 @@ def test_filtered_debug_skips_sanitization(monkeypatch):
 
     monkeypatch.setattr(logger, "_sanitize", should_not_run)
     logger.debug("disabled diagnostic", token="sensitive")
+
+
+def test_file_sink_rotates_at_configured_size(tmp_path):
+    path = tmp_path / "events.jsonl"
+    logger.configure(str(path), "info")
+    logger.info("x" * 2_500_000)
+    logger.info("y" * 2_500_000)
+    assert path.exists()
+    assert (tmp_path / "events.jsonl.1").exists()
+    assert path.stat().st_size < 5_000_000
