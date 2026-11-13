@@ -18,9 +18,10 @@ _LEVELS = {"trace": 5, "debug": logging.DEBUG, "info": logging.INFO,
 _MAX_TEXT_CHARS = 16_384
 _MAX_FIELDS = 64
 _SECRET_ASSIGNMENT = re.compile(
-    r"(?i)([\"']?(?:password|passwd|token|api[_-]?key|authorization|cookie)[\"']?\s*[=:]\s*)"
+    r"(?i)([\"']?(?:password|passwd|secret|token|api[_-]?key|access[_-]?key|private[_-]?key|authorization|cookie)[\"']?\s*[=:]\s*)"
     r'("[^\"]*"|\'[^\']*\'|[^\s,;]+)'
 )
+_URL_CREDENTIALS = re.compile(r"(?i)(https?://)[^\s/@:]+:[^\s/@]+@")
 logging.addLevelName(5, "TRACE")
 _logger = logging.getLogger("xrefgen")
 _logger.propagate = False
@@ -33,6 +34,7 @@ _event_context = ContextVar("xrefgen_log_context", default=None)
 def _sanitize(value):
     safe = re.sub(r"[\x00-\x1f\x7f]", " ", str(value))
     safe = re.sub(r"(?i)bearer\s+[A-Za-z0-9._~+/=-]+", "Bearer [REDACTED]", safe)
+    safe = _URL_CREDENTIALS.sub(r"\1[REDACTED]@", safe)
     safe = _SECRET_ASSIGNMENT.sub(r"\1[REDACTED]", safe)
     safe = re.sub(r"-----BEGIN [^-]*PRIVATE KEY-----.*?-----END [^-]*PRIVATE KEY-----", "[REDACTED PRIVATE KEY]", safe, flags=re.IGNORECASE)
     return safe if len(safe) <= _MAX_TEXT_CHARS else safe[:_MAX_TEXT_CHARS] + " [TRUNCATED]"
@@ -124,7 +126,7 @@ def _emit(level_name: str, msg: str, exc_info=False, **fields):
         if isinstance(value, float) and not isfinite(value):
             continue
         normalized[key] = value
-        if re.search(r"(?i)(password|passwd|secret|token|api.?key|authorization|cookie|private.?key)", key):
+        if re.search(r"(?i)(password|passwd|secret|token|api.?key|access.?key|authorization|cookie|private.?key)", key):
             normalized[key] = "[REDACTED]"
         if isinstance(normalized[key], str):
             normalized[key] = _sanitize(normalized[key])

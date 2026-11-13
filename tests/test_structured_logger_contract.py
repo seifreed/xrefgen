@@ -21,9 +21,11 @@ def test_common_credentials_are_redacted(capsys):
 
 def test_quoted_secrets_and_multiline_values_are_redacted(capsys):
     logger.configure(None, "info")
-    logger.info('config {"api_key": "quoted secret value"}\nnext line')
+    logger.info('config {"api_key": "quoted secret value"} https://user:pass@host/path access_key=private-key\nnext line')
     event = json.loads(capsys.readouterr().out)
     assert "quoted secret value" not in event["message"]
+    assert "user:pass" not in event["message"]
+    assert "private-key" not in event["message"]
     assert "next line" in event["message"]
     assert "\n" not in event["message"]
 
