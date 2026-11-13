@@ -52,3 +52,15 @@ def test_private_key_material_is_redacted(capsys):
     message = json.loads(capsys.readouterr().out)["message"]
     assert "secret" not in message
     assert "[REDACTED PRIVATE KEY]" in message
+
+
+def test_exception_type_and_trace_are_recorded_without_secret(capsys):
+    logger.configure(None, "error")
+    try:
+        raise RuntimeError("token=private-value")
+    except RuntimeError:
+        logger.exception("analysis operation failed")
+    event = json.loads(capsys.readouterr().out)
+    assert event["error_type"] == "RuntimeError"
+    assert "stack_trace" in event
+    assert "private-value" not in event["stack_trace"]

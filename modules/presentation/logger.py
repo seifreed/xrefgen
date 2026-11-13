@@ -19,16 +19,23 @@ _log_file: Optional[str] = None
 _level = _LEVELS["info"]
 
 
+def _sanitize(value):
+    safe = re.sub(r"[\x00-\x1f\x7f]", " ", str(value))
+    safe = re.sub(r"(?i)bearer\s+[A-Za-z0-9._~+/=-]+", "Bearer [REDACTED]", safe)
+    safe = re.sub(r"(?i)(password|passwd|token|api[_-]?key|authorization|cookie)(\s*[=:]\s*)([^\s,;]+)", r"\1\2[REDACTED]", safe)
+    return re.sub(r"-----BEGIN [^-]*PRIVATE KEY-----.*?-----END [^-]*PRIVATE KEY-----", "[REDACTED PRIVATE KEY]", safe, flags=re.IGNORECASE)
+
+
 class _JsonFormatter(logging.Formatter):
     def format(self, record):
         event = {
             "timestamp": datetime.fromtimestamp(record.created, timezone.utc).isoformat(),
             "level": {"warning": "warn", "critical": "fatal"}.get(record.levelname.lower(), record.levelname.lower()), "service": "xrefgen",
-            "component": record.name.rsplit(".", 1)[-1], "message": record.getMessage(),
+            "component": record.name.rsplit(".", 1)[-1], "message": _sanitize(record.getMessage()),
         }
         if record.exc_info:
             event["error_type"] = record.exc_info[0].__name__
-            event["stack_trace"] = self.formatException(record.exc_info)
+            event["stack_trace"] = _sanitize(self.formatException(record.exc_info))
         return json.dumps(event, ensure_ascii=True)
 
 
@@ -63,12 +70,7 @@ def configure(log_file: Optional[str], level: str = "info"):
 
 
 def _emit(level: str, msg: str):
-    # Flatten control characters so untrusted text cannot forge additional records.
-    safe = re.sub(r"[\x00-\x1f\x7f]", " ", str(msg))
-    safe = re.sub(r"(?i)bearer\s+[A-Za-z0-9._~+/=-]+", "Bearer [REDACTED]", safe)
-    safe = re.sub(r"(?i)(password|passwd|token|api[_-]?key|authorization|cookie)(\s*[=:]\s*)([^\s,;]+)", r"\1\2[REDACTED]", safe)
-    safe = re.sub(r"-----BEGIN [^-]*PRIVATE KEY-----.*?-----END [^-]*PRIVATE KEY-----", "[REDACTED PRIVATE KEY]", safe, flags=re.IGNORECASE)
-    _logger.log(_LEVELS[level], safe)
+    _logger.log(_LEVELS[level], _sanitize(msg))
 
 
 def trace(msg: str): _emit("trace", msg)
@@ -77,3 +79,8 @@ def info(msg: str): _emit("info", msg)
 def warn(msg: str): _emit("warn", msg)
 def error(msg: str): _emit("error", msg)
 def critical(msg: str): _emit("critical", msg)
+
+
+def exception(msg: str):
+    """Record the active exception with its sanitized type and stack."""
+    _logger.error(_sanitize(msg), exc_info=True)

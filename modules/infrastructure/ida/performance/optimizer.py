@@ -25,7 +25,7 @@ from modules.domain.analyzer import XrefAnalyzer
 from modules.domain.results import AnalysisResult, deserialize_result, serialize_result
 from modules.infrastructure.ida.base import IDAXrefAnalyzer
 from modules.infrastructure.ida.utils.function_cache import FunctionBoundsCache
-from modules.presentation.logger import info, warn, error
+from modules.presentation.logger import info, warn, exception, error
 
 
 class PerformanceOptimizer:
@@ -371,7 +371,7 @@ class PerformanceOptimizer:
                 info(f"Module completed: {name}, results={len(module_results)}")
             except (TypeError, ValueError, AttributeError, RuntimeError) as e:
                 self.last_run_success = False
-                error(f"Module failed: {name}: {e}")
+                exception(f"Module failed: {name}")
                 results[name] = []
                 profile[name] = {"duration_sec": 0.0, "error": str(e)}
 

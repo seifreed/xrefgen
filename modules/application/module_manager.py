@@ -3,7 +3,7 @@
 from typing import Any, Dict, List
 from modules.domain.analyzer import XrefAnalyzer
 from modules.domain.results import AnalysisResult, RESULT_TYPES
-from modules.presentation.logger import info, error
+from modules.presentation.logger import info, exception
 
 
 class ModuleManager:
@@ -43,7 +43,7 @@ class ModuleManager:
                 self.results.extend(module_results)
                 info(f"Module completed: {module.get_name()}, results={len(module_results)}")
             except (TypeError, ValueError, AttributeError, RuntimeError) as e:
-                error(f"Module failed: {module.get_name()}: {e}")
+                exception(f"Module failed: {module.get_name()}")
                 self.results_by_module[module.get_name()] = []
 
         return self.results
