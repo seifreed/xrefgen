@@ -210,6 +210,14 @@ with tempfile.TemporaryDirectory(prefix="xrefgen-observability-") as output_dir:
             raise AssertionError(f"Orchestrator did not write {artifact}")
     if not any(event.get("event_name") == "results.artifact_written" for event in orchestrator_events):
         raise AssertionError("Artifact output events were not emitted")
+    artifact_events = [
+        event for event in orchestrator_events
+        if event.get("event_name") == "results.artifact_written"
+    ]
+    if any("filename" in event for event in artifact_events):
+        raise AssertionError("Artifact events leaked output filenames")
+    if output_dir in json.dumps(orchestrator_events):
+        raise AssertionError("Orchestrator events leaked temporary output paths")
 
     class FailingAnalyzer:
         enabled = True

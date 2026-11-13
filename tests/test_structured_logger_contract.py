@@ -30,6 +30,28 @@ def test_quoted_secrets_and_multiline_values_are_redacted(capsys):
     assert "\n" not in event["message"]
 
 
+def test_authentication_and_cookie_headers_are_redacted_as_complete_values(capsys):
+    logger.configure(None, "info")
+    logger.info(
+        "received headers:\nAuthorization: Basic dXNlcjpwYXNz\n"
+        "Cookie: sessionid=opaque; preference=private\nrequest accepted"
+    )
+    message = json.loads(capsys.readouterr().out)["message"]
+    assert "dXNlcjpwYXNz" not in message
+    assert "sessionid=opaque" not in message
+    assert "preference=private" not in message
+    assert "request accepted" in message
+
+
+def test_unicode_line_and_bidi_controls_cannot_forge_text_events(capsys):
+    logger.configure(None, "info", "text")
+    logger.info("operation\u2028FATAL forged\u0085\u202e")
+    line = capsys.readouterr().out
+    assert len(line.splitlines()) == 1
+    assert "FATAL forged" in line
+    assert "\u2028" not in line and "\u0085" not in line and "\u202e" not in line
+
+
 def test_oversized_messages_and_fields_are_bounded(capsys):
     logger.configure(None, "info")
     logger.info("x" * 100_000, diagnostic="y" * 100_000)
@@ -116,6 +138,17 @@ def test_exception_type_and_trace_are_recorded_without_secret(capsys):
     assert "private-value" not in event["stack_trace"]
 
 
+def test_explicit_fields_cannot_replace_exception_metadata(capsys):
+    logger.configure(None, "error")
+    try:
+        raise ValueError("failure")
+    except ValueError:
+        logger.exception("operation failed", error_type="Spoofed", error_chain="forged")
+    event = json.loads(capsys.readouterr().out)
+    assert event["error_type"] == "ValueError"
+    assert event["error_chain"] == "ValueError"
+
+
 def test_exception_chain_keeps_types_and_frames_without_messages_or_paths(capsys):
     logger.configure(None, "error")
     try:
@@ -155,6 +188,15 @@ def test_operation_context_is_scoped_and_correlated(capsys):
     assert "correlation_id" not in events[0]
     assert events[1]["operation"] == "analysis"
     assert events[1]["correlation_id"] == "run-123"
+
+
+def test_explicit_fields_cannot_replace_scoped_correlation(capsys):
+    logger.configure(None, "info")
+    with logger.operation_context("analysis", "run-123"):
+        logger.info("inside", operation="spoofed", correlation_id="spoofed")
+    event = json.loads(capsys.readouterr().out)
+    assert event["operation"] == "analysis"
+    assert event["correlation_id"] == "run-123"
 
 
 def test_operation_context_does_not_leak_between_threads(capsys):

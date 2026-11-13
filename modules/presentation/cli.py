@@ -161,7 +161,7 @@ class XrefGenPresenter:
                     if et:
                         line_parts.append(f"evid=[{','.join(f'{e}:1' for e in et)}]")
                 f_min.write(",".join(line_parts) + "\n")
-        info("Cross-reference artifact written", event_name="results.artifact_written", artifact="xrefs_txt", filename=os.path.basename(output_path), result_count=len(results))
+        info("Cross-reference artifact written", event_name="results.artifact_written", artifact="xrefs_txt", result_count=len(results))
 
         with open(details_path, 'w') as f_det:
             self._write_details_header(f_det, binary_path, len(results))
@@ -180,14 +180,14 @@ class XrefGenPresenter:
                             evid = f" evid={','.join(et)}"
                     f_det.write(f"0x{source:x},0x{target:x} # {xref_type} ({confidence:.2f}){evid}\n")
 
-        info("Detailed report written", event_name="results.artifact_written", artifact="details_txt", filename=os.path.basename(details_path), result_count=len(results))
+        info("Detailed report written", event_name="results.artifact_written", artifact="details_txt", result_count=len(results))
 
         if taint_kinds:
             with open(taint_path, 'w') as f_tk:
                 for source, target, _typ, _conf in results:
                     kind = taint_kinds.get((source, target), "")
                     f_tk.write(f"0x{source:x},0x{target:x},{kind}\n")
-            info("Taint-kind report written", event_name="results.artifact_written", artifact="taint_txt", filename=os.path.basename(taint_path), result_count=len(results))
+            info("Taint-kind report written", event_name="results.artifact_written", artifact="taint_txt", result_count=len(results))
 
         self._write_json(results, json_path, evidence_counts, evidence_types, taint_kinds)
         self._write_csv(results, csv_path, evidence_counts, evidence_types, taint_kinds)
@@ -242,7 +242,7 @@ class XrefGenPresenter:
         ]
         with open(path, "w", encoding="utf-8") as f_json:
             json.dump(payload, f_json, indent=2)
-        info("JSON report written", event_name="results.artifact_written", artifact="json", filename=os.path.basename(path), result_count=len(results))
+        info("JSON report written", event_name="results.artifact_written", artifact="json", result_count=len(results))
 
     def _write_csv(self, results, path: str, evidence_counts: dict = None, evidence_types: dict = None, taint_kinds: dict = None):
         with open(path, "w", newline="", encoding="utf-8") as f_csv:
@@ -253,12 +253,12 @@ class XrefGenPresenter:
                 etypes = sorted(list(evidence_types.get((source, target), []))) if evidence_types else []
                 tkind = taint_kinds.get((source, target)) if taint_kinds else ""
                 writer.writerow([f"0x{source:x}", f"0x{target:x}", xref_type, f"{confidence:.2f}", evidence, "|".join(etypes), tkind])
-        info("CSV report written", event_name="results.artifact_written", artifact="csv", filename=os.path.basename(path), result_count=len(results))
+        info("CSV report written", event_name="results.artifact_written", artifact="csv", result_count=len(results))
 
     def _write_profile(self, profile: dict, path: str):
         with open(path, "w", encoding="utf-8") as f_prof:
             json.dump(profile, f_prof, indent=2)
-        info("Analysis profile written", event_name="results.artifact_written", artifact="profile_json", filename=os.path.basename(path))
+        info("Analysis profile written", event_name="results.artifact_written", artifact="profile_json")
 
     def _write_details_header(self, f_det, binary_path: str, total: int):
         f_det.write(f"# XrefGen v{__version__} - Cross-Reference Analysis Results\n")

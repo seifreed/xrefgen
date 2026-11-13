@@ -219,11 +219,11 @@ class Config:
         self.config = self.load_config()
         self.validation_errors = self.validate_config(self.config)
         if self.validation_errors:
-            for err in self.validation_errors:
-                warn(
-                    f"Configuration warning: {err}",
-                    event_name="configuration.validation_warning",
-                )
+            warn(
+                "Configuration contains invalid entries",
+                event_name="configuration.validation_warning",
+                invalid_entry_count=len(self.validation_errors),
+            )
 
     def load_config(self) -> Dict[str, Any]:
         """Load configuration from file or use defaults."""
@@ -378,7 +378,6 @@ class Config:
             info(
                 "Configuration saved",
                 event_name="configuration.saved",
-                filename=os.path.basename(self.config_file),
             )
         except (IOError, OSError, TypeError) as e:
             error(

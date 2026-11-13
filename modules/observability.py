@@ -20,6 +20,8 @@ _MAX_TEXT_CHARS = 16_384
 _MAX_FIELDS = 64
 _DEFAULT_MAX_BYTES = 5_000_000
 _DEFAULT_BACKUP_COUNT = 3
+_CONTROL_CHARS = re.compile(r"[\x00-\x1f\x7f-\x9f\u2028\u2029\u200e\u200f\u202a-\u202e\u2066-\u2069]")
+_SENSITIVE_HEADER = re.compile(r"(?i)\b((?:proxy-)?authorization|cookie|set-cookie)\s*[:=\s]+[^\r\n]*")
 _SECRET_ASSIGNMENT = re.compile(
     r"(?i)([\"']?(?:password|passwd|secret|token|api[_-]?key|access[_-]?key|private[_-]?key|authorization|cookie)[\"']?\s*[=:]\s*)"
     r'("[^\"]*"|\'[^\']*\'|[^\s,;]+)'
@@ -31,11 +33,12 @@ _logger.propagate = False
 _logger.setLevel(logging.INFO)
 _log_file: Optional[str] = None
 _level = _LEVELS["info"]
-_event_context = ContextVar("xrefgen_log_context", default=None)
+_event_context: ContextVar[Optional[dict[str, str]]] = ContextVar("xrefgen_log_context", default=None)
 
 
 def _sanitize(value):
-    safe = re.sub(r"[\x00-\x1f\x7f]", " ", str(value))
+    safe = _SENSITIVE_HEADER.sub(r"\1: [REDACTED]", str(value))
+    safe = _CONTROL_CHARS.sub(" ", safe)
     safe = re.sub(r"(?i)bearer\s+[A-Za-z0-9._~+/=-]+", "Bearer [REDACTED]", safe)
     safe = _URL_CREDENTIALS.sub(r"\1[REDACTED]@", safe)
     safe = _SECRET_ASSIGNMENT.sub(r"\1[REDACTED]", safe)
@@ -67,8 +70,8 @@ class _JsonFormatter(logging.Formatter):
                 f'File "{os.path.basename(frame.filename)}", line {frame.lineno}, in {frame.name}'
                 for frame in frames[-64:]
             ))
-        event.update(_event_context.get() or {})
         event.update(getattr(record, "xrefgen_fields", {}))
+        event.update(_event_context.get() or {})
         return event
 
     def format(self, record):
@@ -133,13 +136,13 @@ def configure(
         backup_count = _DEFAULT_BACKUP_COUNT
     if log_file:
         try:
-            handler = _SafeRotatingFileHandler(
+            file_handler = _SafeRotatingFileHandler(
                 log_file,
                 maxBytes=max_bytes,
                 backupCount=backup_count,
                 encoding="utf-8",
             )
-            _logger.addHandler(handler)
+            _logger.addHandler(file_handler)
         except OSError as exc:
             warnings.append(f"File logging unavailable ({type(exc).__name__}); using console")
             log_file = None
@@ -155,10 +158,13 @@ def _emit(level_name: str, msg: str, exc_info=False, **fields):
     if _LEVELS[level_name] < _logger.getEffectiveLevel():
         return
     normalized = {}
+    reserved = {"timestamp", "level", "service", "component", "message", "stack_trace"}
+    if exc_info:
+        reserved.update({"error_type", "error_chain"})
     for field_index, (key, value) in enumerate(fields.items()):
         if field_index >= _MAX_FIELDS:
             break
-        if not re.fullmatch(r"[a-z][a-z0-9_]{0,63}", key) or key in {"timestamp", "level", "service", "component", "message", "stack_trace"}:
+        if not re.fullmatch(r"[a-z][a-z0-9_]{0,63}", key) or key in reserved:
             continue
         if not isinstance(value, (str, int, float, bool)) and value is not None:
             continue
@@ -169,7 +175,7 @@ def _emit(level_name: str, msg: str, exc_info=False, **fields):
             normalized[key] = "[REDACTED]"
         if isinstance(normalized[key], str):
             normalized[key] = _sanitize(normalized[key])
-    _logger.log(_LEVELS[level_name], _sanitize(msg), exc_info=exc_info, stacklevel=3, extra={"xrefgen_fields": normalized})
+    _logger.log(_LEVELS[level_name], msg, exc_info=exc_info, stacklevel=3, extra={"xrefgen_fields": normalized})
 
 
 def trace(msg: str, **fields): _emit("trace", msg, **fields)
