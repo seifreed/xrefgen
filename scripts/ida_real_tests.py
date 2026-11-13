@@ -8,6 +8,7 @@ import sys
 import io
 import logging
 import time
+import tempfile
 from uuid import uuid4
 import idautils
 import ida_nalt
@@ -26,6 +27,7 @@ from modules.domain.results import (
 )
 from modules.infrastructure.ida.performance.optimizer import PerformanceOptimizer
 from modules import observability
+from xrefgen import XrefGen
 
 observability.configure(None)
 cfg = Config().config
@@ -128,6 +130,66 @@ if expected_path:
         raise ValueError(f"Forbidden xrefs emitted: {sorted(actual.intersection(forbidden))}")
 
 print("[IDA Real Tests] OK: modules executed, results validated")
+
+# Exercise the production orchestrator and artifact-writing path with isolated outputs.
+with tempfile.TemporaryDirectory(prefix="xrefgen-observability-") as output_dir:
+    orchestrator_cfg = copy.deepcopy(cfg)
+    general = orchestrator_cfg.setdefault("general", {})
+    general.update({
+        "log_file": None,
+        "output_name_mode": "custom",
+        "output_file": os.path.join(output_dir, "xrefs.txt"),
+        "details_output_file": os.path.join(output_dir, "details.txt"),
+        "json_output_file": os.path.join(output_dir, "xrefs.json"),
+        "csv_output_file": os.path.join(output_dir, "xrefs.csv"),
+        "profile_output_file": os.path.join(output_dir, "profile.json"),
+        "findings_output_file": os.path.join(output_dir, "findings.json"),
+        "relationships_output_file": os.path.join(output_dir, "relationships.json"),
+        "rejections_output_file": os.path.join(output_dir, "rejections.json"),
+        "taint_kind_output_file": os.path.join(output_dir, "taint.txt"),
+    })
+    performance = orchestrator_cfg.setdefault("modules", {}).setdefault("performance", {})
+    performance.update({"enabled": True, "use_cache": False})
+    config_path = os.path.join(output_dir, "xrefgen_config.json")
+    with open(config_path, "w", encoding="utf-8") as config_file:
+        json.dump(orchestrator_cfg, config_file)
+
+    app = XrefGen(config_file=config_path)
+    capture = io.StringIO()
+    capture_handler = logging.StreamHandler(capture)
+    capture_handler.setFormatter(observability._logger.handlers[0].formatter)
+    observability._logger.addHandler(capture_handler)
+    try:
+        app.run(incremental=False)
+    finally:
+        observability._logger.removeHandler(capture_handler)
+        capture_handler.close()
+
+    orchestrator_events = [
+        json.loads(line) for line in capture.getvalue().splitlines()
+    ]
+    started_event = next(
+        event for event in orchestrator_events
+        if event.get("event_name") == "analysis.started"
+    )
+    finished_event = next(
+        event for event in orchestrator_events
+        if event.get("event_name") == "analysis.finished"
+    )
+    if not started_event.get("correlation_id") or any(
+        event.get("correlation_id") != started_event["correlation_id"]
+        for event in (finished_event,)
+    ):
+        raise AssertionError("Orchestrator lifecycle events were not correlated")
+    if finished_event.get("duration_ms", -1) < 0:
+        raise AssertionError("Orchestrator completion event lacked duration")
+    for artifact in ("xrefs.txt", "details.txt", "xrefs.json", "xrefs.csv"):
+        if not os.path.exists(os.path.join(output_dir, artifact)):
+            raise AssertionError(f"Orchestrator did not write {artifact}")
+    if not any(event.get("event_name") == "results.artifact_written" for event in orchestrator_events):
+        raise AssertionError("Artifact output events were not emitted")
+
+print("[IDA Real Tests] OK: orchestrator events correlated and artifacts written")
 
 if os.environ.get("XREFGEN_ASSERT_EQUIVALENCE"):
     equivalence_cfg = copy.deepcopy(cfg)
