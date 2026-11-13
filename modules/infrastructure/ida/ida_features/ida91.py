@@ -42,7 +42,11 @@ class IDA91Analyzer(IDAXrefAnalyzer):
     def analyze(self) -> List[AnalysisResult]:
         """Perform IDA 9.1 specific analysis"""
         if not self.is_compatible:
-            warn(f"IDA 9.1+ required; current version is {self.ida_version}")
+            warn(
+                "IDA 9.1 or later is required",
+                event_name="ida.version_unsupported",
+                ida_version=self.ida_version,
+            )
             return []
 
         results = []
@@ -403,7 +407,10 @@ class IDA91Analyzer(IDAXrefAnalyzer):
                     continue
 
         except ImportError:
-            info("Hex-Rays decompiler unavailable; skipping decompiler analysis")
+            info(
+                "Hex-Rays decompiler unavailable; skipping decompiler analysis",
+                event_name="decompiler.unavailable",
+            )
 
         return results
 
@@ -436,7 +443,10 @@ class IDA91Analyzer(IDAXrefAnalyzer):
         try:
             import ida_lumina
         except ImportError:
-            info("Lumina module unavailable; skipping Lumina analysis")
+            info(
+                "Lumina module unavailable; skipping Lumina analysis",
+                event_name="lumina.unavailable",
+            )
             return results
 
         # Attempt to fetch metadata; keep it non-destructive and optional
@@ -448,6 +458,7 @@ class IDA91Analyzer(IDAXrefAnalyzer):
             elif hasattr(ida_lumina, "refresh_metadata"):
                 ida_lumina.refresh_metadata()
             # Metadata is useful to IDA but is not an xref candidate.
+            info("Lumina metadata refresh completed", event_name="lumina.metadata_refresh_completed")
         except (TypeError, ValueError, AttributeError, RuntimeError) as exc:
             # Best-effort; do not fail the analysis if Lumina unreachable
             warn(

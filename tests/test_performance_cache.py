@@ -86,12 +86,15 @@ class PerformanceCacheTests(unittest.TestCase):
 
         output = io.StringIO()
         with redirect_stdout(output):
-            logger.configure(None, "error")
+            logger.configure(None, "debug")
             optimizer = PerformanceOptimizer({"use_cache": False, "incremental": False})
             optimizer.analyze_sequential([FailingAnalyzer()], modified_only=False)
             logger.shutdown()
 
-        event = json.loads(output.getvalue())
+        events = [json.loads(line) for line in output.getvalue().splitlines()]
+        started = next(event for event in events if event.get("event_name") == "module.started")
+        event = next(event for event in events if event.get("event_name") == "module.failed")
+        self.assertEqual(started["status"], "started")
         self.assertEqual(event["error_type"], "RuntimeError")
         self.assertNotIn("profile-secret", output.getvalue())
         self.assertEqual(optimizer.last_profile["FailingAnalyzer"]["error_type"], "RuntimeError")

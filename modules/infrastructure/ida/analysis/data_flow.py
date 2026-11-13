@@ -251,7 +251,11 @@ class DataFlowAnalyzer(IncrementalAnalyzer):
             if func_count > 5000:
                 self.sink_min_confidence = max(self.sink_min_confidence, 0.65)
         except (TypeError, ValueError, AttributeError, RuntimeError) as exc:
-            debug("Could not inspect database size for taint confidence tuning", error_type=type(exc).__name__)
+            debug(
+                "Could not inspect database size for taint confidence tuning",
+                event_name="taint.database_size_unavailable",
+                error_type=type(exc).__name__,
+            )
         # Some IDA versions (including 9.1 Python API) do not expose idc.get_sp_val
         # Guard stack taint tracking accordingly
         self._has_get_sp_val = hasattr(idc, "get_sp_val")
@@ -517,7 +521,11 @@ class DataFlowAnalyzer(IncrementalAnalyzer):
                     self._max_depth_override or scaled, scaled
                 )
         except (TypeError, ValueError, AttributeError, RuntimeError) as exc:
-            debug("Could not inspect function CFG complexity", error_type=type(exc).__name__)
+            debug(
+                "Could not inspect function CFG complexity",
+                event_name="taint.cfg_complexity_unavailable",
+                error_type=type(exc).__name__,
+            )
         try:
             if blocks:
                 edges = 0
@@ -553,7 +561,11 @@ class DataFlowAnalyzer(IncrementalAnalyzer):
                             self._max_depth_override or scaled, scaled
                         )
         except (TypeError, ValueError, AttributeError, RuntimeError) as exc:
-            debug("Could not inspect function CFG topology", error_type=type(exc).__name__)
+            debug(
+                "Could not inspect function CFG topology",
+                event_name="taint.cfg_topology_unavailable",
+                error_type=type(exc).__name__,
+            )
         try:
             # Local taint propagation inside function
             self._analyze_function_taint(func_ea, deadline)
@@ -561,23 +573,23 @@ class DataFlowAnalyzer(IncrementalAnalyzer):
             # Source/sink logic for this function + its callers
             results.extend(self._analyze_taint_for_function(func_ea))
         except (TypeError, ValueError, AttributeError, RuntimeError) as e:
-            warn("Taint analysis unavailable", error_type=type(e).__name__)
+            warn("Taint analysis unavailable", event_name="taint.analysis_unavailable", error_type=type(e).__name__)
         try:
             if not self._slow:
                 results.extend(self._analyze_return_values_for_function(func_ea, func))
         except (TypeError, ValueError, AttributeError, RuntimeError) as e:
-            warn("Return value analysis unavailable", error_type=type(e).__name__)
+            warn("Return value analysis unavailable", event_name="taint.return_value_analysis_unavailable", error_type=type(e).__name__)
         try:
             if not self._slow:
                 results.extend(self._hexrays_taint_flow(func_ea))
         except (TypeError, ValueError, AttributeError, RuntimeError) as e:
-            warn("Hex-Rays taint analysis unavailable", error_type=type(e).__name__)
+            warn("Hex-Rays taint analysis unavailable", event_name="taint.hexrays_analysis_unavailable", error_type=type(e).__name__)
         try:
             if not self._slow:
                 pointer_chains = self._find_pointer_chains(func, deadline)
                 results.extend(self._emit_pointer_chain_results(pointer_chains))
         except (TypeError, ValueError, AttributeError, RuntimeError) as e:
-            warn("Pointer chain analysis unavailable", error_type=type(e).__name__)
+            warn("Pointer chain analysis unavailable", event_name="taint.pointer_chain_analysis_unavailable", error_type=type(e).__name__)
         return results
 
     def _analyze_taint_for_function(
@@ -1317,7 +1329,7 @@ class DataFlowAnalyzer(IncrementalAnalyzer):
                 if "rust" in name:
                     return "rust"
         except (TypeError, ValueError, AttributeError, RuntimeError) as exc:
-            debug("Could not infer compiler profile from segments", error_type=type(exc).__name__)
+            debug("Could not infer compiler profile from segments", event_name="taint.compiler_profile_segments_unavailable", error_type=type(exc).__name__)
         try:
             for func_ea in sorted(idautils.Functions()):
                 name = idc.get_func_name(func_ea)
@@ -1330,7 +1342,7 @@ class DataFlowAnalyzer(IncrementalAnalyzer):
                 if name.startswith("_ZN") or name.startswith("core::"):
                     return "rust"
         except (TypeError, ValueError, AttributeError, RuntimeError) as exc:
-            debug("Could not infer compiler profile from function names", error_type=type(exc).__name__)
+            debug("Could not infer compiler profile from function names", event_name="taint.compiler_profile_names_unavailable", error_type=type(exc).__name__)
         return "unknown"
 
     def _is_reg_tainted_near_call(self, call_ea: int, reg: str, func) -> bool:
@@ -1490,7 +1502,7 @@ class DataFlowAnalyzer(IncrementalAnalyzer):
                                 AttributeError,
                                 RuntimeError,
                             ) as exc:
-                                debug("Could not inspect tainted sink arguments", error_type=type(exc).__name__)
+                                debug("Could not inspect tainted sink arguments", event_name="taint.sink_arguments_unavailable", error_type=type(exc).__name__)
                 except (TypeError, ValueError, AttributeError, RuntimeError):
                     pass
                 return 0

@@ -80,7 +80,11 @@ class CrossArchAnalyzer(IncrementalAnalyzer):
     def analyze(self) -> List[AnalysisResult]:
         """Perform architecture-specific analysis"""
         if self.arch not in self.supported_archs:
-            warn(f"Architecture {self.arch} is not supported")
+            warn(
+                "Architecture is not supported",
+                event_name="architecture.unsupported",
+                architecture=self.arch,
+            )
             return []
         return super().analyze()
 

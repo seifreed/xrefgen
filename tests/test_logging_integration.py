@@ -33,7 +33,10 @@ def test_module_success_emits_duration_and_count(capsys):
     manager.register_module(_GoodAnalyzer())
     assert len(manager.run_analysis()) == 1
     events = _events(capsys.readouterr().out)
-    started, completed = [event for event in events if event.get("event_name", "").startswith("module.")]
+    started, completed = [
+        event for event in events
+        if event.get("event_name") in {"module.started", "module.finished"}
+    ]
     assert started["status"] == "started"
     assert completed["status"] == "completed"
     assert completed["module"] == "GoodAnalyzer"

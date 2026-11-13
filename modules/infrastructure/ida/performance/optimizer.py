@@ -65,16 +65,6 @@ class PerformanceOptimizer:
         # Track modifications
         self.modified_functions = set()
         self.last_analysis_time = time.time()
-        # Optional logger callable
-        self.logger = None
-
-    def _log(self, msg: str):
-        try:
-            if callable(self.logger):
-                self.logger(msg)
-        except (TypeError, ValueError, AttributeError, RuntimeError):
-            pass
-
     def _calculate_binary_hash(self) -> str:
         """Calculate a robust hash of the current IDA database state"""
         hasher = hashlib.sha256()
@@ -362,7 +352,13 @@ class PerformanceOptimizer:
                 if hasattr(analyzer, "set_slow_functions"):
                     analyzer.set_slow_functions(self._slow_functions)
 
-                self._log(f"Starting {name}")
+                info(
+                    "Analysis module started",
+                    event_name="module.started",
+                    module=name,
+                    status="started",
+                    function_count=len(target_funcs),
+                )
                 start_t = time.time()
 
                 # Execute with caching and thread-safe IDA orchestration

@@ -236,7 +236,7 @@ class GraphAnalyzer(IncrementalAnalyzer):
     
     def _build_call_graph(self):
         """Build complete call graph of the binary"""
-        info("Building call graph")
+        info("Building call graph", event_name="graph.build_started")
 
         for func_ea, func in self._iter_functions():
             if self._is_trivial_function(func):
@@ -426,7 +426,7 @@ class GraphAnalyzer(IncrementalAnalyzer):
                 if "rust" in name:
                     return "rust"
         except (TypeError, ValueError, AttributeError, RuntimeError) as exc:
-            debug("Could not infer graph compiler profile from segments", error_type=type(exc).__name__)
+            debug("Could not infer graph compiler profile from segments", event_name="graph.compiler_profile_segments_unavailable", error_type=type(exc).__name__)
         # Fall back to function names
         try:
             for func_ea in sorted(idautils.Functions()):
@@ -440,7 +440,7 @@ class GraphAnalyzer(IncrementalAnalyzer):
                 if name.startswith("_ZN") or name.startswith("core::"):
                     return "rust"
         except (TypeError, ValueError, AttributeError, RuntimeError) as exc:
-            debug("Could not infer graph compiler profile from function names", error_type=type(exc).__name__)
+            debug("Could not infer graph compiler profile from function names", event_name="graph.compiler_profile_names_unavailable", error_type=type(exc).__name__)
         return "unknown"
 
     def _compiler_conf_multiplier(self, target_ea: int) -> float:
@@ -590,7 +590,11 @@ class GraphAnalyzer(IncrementalAnalyzer):
         results = []
         entry_points = self._entry_finder.find_entry_points()
         
-        info(f"Analyzing call chains from {len(entry_points)} entry points")
+        info(
+            "Analyzing call chains",
+            event_name="graph.call_chains_started",
+            entry_point_count=len(entry_points),
+        )
         
         for entry in entry_points:
             chains = self._build_chains_from_entry(entry)
@@ -671,7 +675,7 @@ class GraphAnalyzer(IncrementalAnalyzer):
         """Generate function clusters based on xref patterns"""
         results = []
         
-        info("Generating function clusters")
+        info("Generating function clusters", event_name="graph.clusters_started")
         
         # Use connected components algorithm
         clusters = self._find_connected_components()
@@ -765,7 +769,7 @@ class GraphAnalyzer(IncrementalAnalyzer):
         return cohesion * size_factor
     
     def _analyze_complexity(self) -> List[AnalysisResult]:
-        info("Analyzing function complexity")
+        info("Analyzing function complexity", event_name="graph.complexity_started")
         return self._complexity.analyze()
 
     def confidence(self, key: str, default: float = None) -> float:

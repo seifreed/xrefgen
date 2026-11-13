@@ -231,7 +231,11 @@ class Config:
                     user_config = json.load(f)
                     return self._merge_configs(self.DEFAULT_CONFIG, user_config)
             except (json.JSONDecodeError, KeyError, OSError) as e:
-                error("Configuration load failed; using defaults", error_type=type(e).__name__)
+                error(
+                    "Configuration load failed; using defaults",
+                    event_name="configuration.load_failed",
+                    error_type=type(e).__name__,
+                )
                 return copy.deepcopy(self.DEFAULT_CONFIG)
         return copy.deepcopy(self.DEFAULT_CONFIG)
 
@@ -367,9 +371,17 @@ class Config:
         try:
             with open(self.config_file, "w") as f:
                 json.dump(self.config, f, indent=4)
-            info("Configuration saved", event_name="configuration.saved", filename=os.path.basename(self.config_file))
+            info(
+                "Configuration saved",
+                event_name="configuration.saved",
+                filename=os.path.basename(self.config_file),
+            )
         except (IOError, OSError, TypeError) as e:
-            error("Configuration save failed", error_type=type(e).__name__)
+            error(
+                "Configuration save failed",
+                event_name="configuration.save_failed",
+                error_type=type(e).__name__,
+            )
 
     def _merge_configs(self, default: Dict, user: Dict) -> Dict:
         """Recursively merge user config with defaults."""

@@ -211,7 +211,11 @@ class XrefGenPresenter:
             if path:
                 return path
         except (TypeError, ValueError, AttributeError, RuntimeError) as exc:
-            warn("Could not retrieve IDB path; using binary path", error_type=type(exc).__name__)
+            warn(
+                "Could not retrieve IDB path; using binary path",
+                event_name="ida.idb_path_unavailable",
+                error_type=type(exc).__name__,
+            )
         return fallback_binary_path
 
     def _resolve_output_path(self, name: str, idb_path: str, base_dir: str, mode: str) -> str:

@@ -21,7 +21,11 @@ class ModuleManager:
         """Register an analysis module."""
         if module.enabled:
             self.modules.append(module)
-            info(f"Registered module: {module.get_name()}")
+            info(
+                "Analysis module registered",
+                event_name="module.registered",
+                module=module.get_name(),
+            )
 
     def run_analysis(
         self, selected_modules: List[str] = None

@@ -83,11 +83,15 @@ class XrefGen:
 
     def _register_modules(self):
         """Register all analysis modules"""
-        _info("Registering analysis modules")
+        _info("Registering analysis modules", event_name="module.registration_started")
         for module in build_modules(self.config.config):
             self.manager.register_module(module)
 
-        _info(f"Registered {len(self.manager.modules)} modules")
+        _info(
+            "Analysis modules registered",
+            event_name="module.registration_completed",
+            module_count=len(self.manager.modules),
+        )
 
     def run(self, modules: List[str] = None, incremental: bool = None):
         """Run one correlated analysis operation."""
@@ -161,12 +165,16 @@ class XrefGen:
         if incremental:
             modified_functions = self.optimizer.get_modified_functions()
             if not modified_functions:
-                _info("No modified functions detected, skipping analysis")
+                _info(
+                    "No modified functions detected; skipping analysis",
+                    event_name="analysis.skipped",
+                    reason="no_modified_functions",
+                )
                 return
 
         # Run analysis with performance optimization (sequential and main-thread safe)
         if self.config.get("modules.performance.enabled"):
-            _info("Running analysis...")
+            _info("Running analysis with performance optimizer", event_name="analysis.mode_selected", mode="optimized")
             results_by_module = self.optimizer.analyze_sequential(
                 self.manager.modules,
                 modified_only=incremental,
@@ -180,7 +188,7 @@ class XrefGen:
                 all_results.extend(module_results)
             profile = getattr(self.optimizer, "last_profile", {})
         else:
-            _info("Running analysis without performance optimizer...")
+            _info("Running analysis without performance optimizer", event_name="analysis.mode_selected", mode="standard")
             all_results = self.manager.run_analysis(modules)
             profile = {}
 
@@ -270,7 +278,12 @@ class XrefGen:
                 with open(full, "w", encoding="utf-8") as f_slow:
                     json.dump(profile, f_slow, indent=2)
         except (IOError, OSError, KeyError, TypeError) as exc:
-            _error("Slow-function report could not be written", error_type=type(exc).__name__)
+            _error(
+                "Slow-function report could not be written",
+                event_name="artifact.write_failed",
+                artifact="slow_function_report",
+                error_type=type(exc).__name__,
+            )
 
         # Save cache if enabled
         if self.config.get("modules.performance.use_cache"):
@@ -303,7 +316,7 @@ class XrefGen:
 
     def _wait_for_analysis(self, timeout: int = 60) -> bool:
         """Wait for IDA auto-analysis to complete"""
-        _info("Waiting for IDA auto-analysis to complete...")
+        _info("Waiting for IDA auto-analysis", event_name="ida.auto_analysis_wait_started")
         try:
             if not ida_auto.auto_is_ok() and hasattr(ida_auto, "auto_wait"):
                 ida_auto.auto_wait()
@@ -311,7 +324,7 @@ class XrefGen:
         except (TypeError, ValueError, AttributeError, RuntimeError):
             ready = False
         if ready:
-            _info("Auto-analysis complete")
+            _info("IDA auto-analysis complete", event_name="ida.auto_analysis_wait_completed")
         return ready
 
     def _get_arch_name(self) -> str:
@@ -394,10 +407,10 @@ def main():
         import importlib.util
 
         if importlib.util.find_spec("idaapi") is None:
-            _warn("XrefGen must be run from within IDA Pro")
+            _warn("XrefGen must be run from within IDA Pro", event_name="runtime.ida_required")
             return
     except (ImportError, ModuleNotFoundError):
-        _warn("XrefGen must be run from within IDA Pro")
+        _warn("XrefGen must be run from within IDA Pro", event_name="runtime.ida_required")
         return
     # Parse arguments (if any)
     parser = argparse.ArgumentParser(
@@ -420,9 +433,6 @@ def main():
 
     # Create XrefGen instance
     xrefgen = XrefGen(config_file=args.config)
-    # Keep optimizer diagnostics on the same configured logging pipeline.
-    xrefgen.optimizer.logger = logger.debug
-
     # Clear cache if requested
     if args.clear_cache:
         xrefgen.optimizer.clear_cache()
@@ -433,7 +443,7 @@ def main():
     else:
         xrefgen.run(modules=args.modules, incremental=args.incremental)
 
-    _info("XrefGen entry point finished")
+    _info("XrefGen entry point finished", event_name="service.entry_point_finished")
 
 
 if __name__ == "__main__":
