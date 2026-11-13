@@ -24,3 +24,31 @@ def test_concurrent_records_remain_independent(capsys):
     events = [json.loads(line) for line in capsys.readouterr().out.splitlines()]
     assert len(events) == 100
     assert {event["message"] for event in events} == {f"event-{n}" for n in range(100)}
+
+
+def test_unavailable_file_destination_falls_back_to_console(capsys, tmp_path, monkeypatch):
+    logger.configure(str(tmp_path / "missing" / "events.log"), "info")
+    logger.info("console fallback")
+    assert json.loads(capsys.readouterr().out)["message"] == "console fallback"
+
+
+def test_file_write_failure_does_not_raise(capsys, tmp_path):
+    logger.configure(str(tmp_path / "events.log"), "info")
+    class BrokenStream:
+        def write(self, _text):
+            raise OSError("disk unavailable")
+
+        def flush(self):
+            pass
+
+    logger._logger.handlers[1].stream = BrokenStream()
+    logger.info("still available")
+    assert json.loads(capsys.readouterr().out)["message"] == "still available"
+
+
+def test_private_key_material_is_redacted(capsys):
+    logger.configure(None, "info")
+    logger.info("-----BEGIN PRIVATE KEY-----secret\nkey-----END PRIVATE KEY-----")
+    message = json.loads(capsys.readouterr().out)["message"]
+    assert "secret" not in message
+    assert "[REDACTED PRIVATE KEY]" in message

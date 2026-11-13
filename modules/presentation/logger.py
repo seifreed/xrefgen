@@ -32,6 +32,13 @@ class _JsonFormatter(logging.Formatter):
         return json.dumps(event, ensure_ascii=True)
 
 
+class _SafeRotatingFileHandler(RotatingFileHandler):
+    """A broken optional file sink must not interrupt IDA analysis or leak handler errors."""
+
+    def handleError(self, record):
+        return
+
+
 def configure(log_file: Optional[str], level: str = "info"):
     """Configure stdout and optional size-bounded UTF-8 JSON file output."""
     global _log_file, _level
@@ -45,8 +52,11 @@ def configure(log_file: Optional[str], level: str = "info"):
     _level = selected
     _logger.addHandler(logging.StreamHandler(sys.stdout))
     if log_file:
-        handler = RotatingFileHandler(log_file, maxBytes=5_000_000, backupCount=3, encoding="utf-8")
-        _logger.addHandler(handler)
+        try:
+            handler = _SafeRotatingFileHandler(log_file, maxBytes=5_000_000, backupCount=3, encoding="utf-8")
+            _logger.addHandler(handler)
+        except OSError:
+            pass
     for handler in _logger.handlers:
         handler.setFormatter(_JsonFormatter())
     _log_file = log_file
@@ -57,6 +67,7 @@ def _emit(level: str, msg: str):
     safe = re.sub(r"[\x00-\x1f\x7f]", " ", str(msg))
     safe = re.sub(r"(?i)bearer\s+[A-Za-z0-9._~+/=-]+", "Bearer [REDACTED]", safe)
     safe = re.sub(r"(?i)(password|passwd|token|api[_-]?key|authorization|cookie)(\s*[=:]\s*)([^\s,;]+)", r"\1\2[REDACTED]", safe)
+    safe = re.sub(r"-----BEGIN [^-]*PRIVATE KEY-----.*?-----END [^-]*PRIVATE KEY-----", "[REDACTED PRIVATE KEY]", safe, flags=re.IGNORECASE)
     _logger.log(_LEVELS[level], safe)
 
 
