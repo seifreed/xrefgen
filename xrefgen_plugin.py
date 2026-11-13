@@ -30,7 +30,12 @@ class XrefGenPlugin(idaapi.plugin_t):
             # Default to interactive mode when launched as plugin
             xrefgen.XrefGen().interactive_mode()
         except (ImportError, AttributeError, TypeError, RuntimeError) as exc:
-            ida_kernwin.warning("XrefGen failed: %s" % exc)
+            try:
+                from modules.presentation.logger import exception
+                exception("Plugin launch failed", event_name="plugin.launch_failed", status="failed")
+            except ImportError:
+                pass
+            ida_kernwin.warning("XrefGen could not start; see the IDA console log")
 
     def term(self):
         try:
