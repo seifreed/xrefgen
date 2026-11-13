@@ -34,7 +34,7 @@ Evidence through commit `290170d` (building on the earlier commits listed in git
 | Structure and consistency | 8 | JSON UTC schema with optional structured fields; component is currently always `xrefgen`. |
 | Context and correlation | 5 | A per-run correlation ID and operation are scoped with `ContextVar`; no distributed tracing is justified for the current single-process design. |
 | Security and privacy | 7 | Common credentials, bearer values, private keys and controls are redacted; file events use basenames, and broader sensitive-data review remains. |
-| Performance and resilience | 8 | 20,000-event in-memory benchmark: JSON INFO ~48,987 events/s, filtered DEBUG ~3,901,328 calls/s; bounded rotation and non-fatal file sink. IDA-thread impact remains unmeasured. |
+| Performance and resilience | 8 | 20,000-event in-memory benchmark: JSON INFO ~48,987 events/s, filtered DEBUG ~3,901,328 calls/s; a 301-function IDA 9.5 smoke run completed in ~2.06 s with bounded rotation and file sink enabled. The isolated logging overhead versus logging-off remains unmeasured. |
 | Configuration and portability | 6 | Invalid level/file sink fall back with a structured warning; no environment selector or retention configuration beyond fixed bounds. |
 | Error handling | 7 | Analysis boundary logs uncaught exceptions with sanitized stack and re-raises; remaining best-effort catches require review. |
 | Testing and verification | 8 | 39 maintained tests pass; IDA 9.5 smoke test ran module analysis and production orchestration, checked correlated lifecycle/artifact events, JSONL file-sink readback and output files. The entire repository test suite still includes conflicting untracked tests. |
@@ -42,4 +42,4 @@ Evidence through commit `290170d` (building on the earlier commits listed in git
 
 Do not use the provisional score as a completion claim. A final score requires resolving the remaining gaps, running the maintained test suite, and verifying the plugin lifecycle in IDA or documenting a genuine environment limitation.
 
-The throughput figures above are a local CPython 3.14 microbenchmark writing JSON to `io.StringIO`; they are comparative evidence for the formatter/filter path only, not a production workload or IDA performance certification.
+The throughput figures above are a local CPython 3.14 microbenchmark writing JSON to `io.StringIO`; they are comparative evidence for the formatter/filter path only. The 301-function timing is an end-to-end synthetic Mach-O fixture run in IDA 9.5, not an isolated estimate of logging overhead or a representative customer binary.
