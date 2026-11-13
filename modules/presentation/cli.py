@@ -31,7 +31,8 @@ class XrefGenPresenter:
         ]
         try:
             return self._choose_index(choices, "XrefGen - Select Action")
-        except (TypeError, ValueError, AttributeError, RuntimeError):
+        except (TypeError, ValueError, AttributeError, RuntimeError) as exc:
+            warn("Could not show the main menu", event_name="ui.menu_unavailable", error_type=type(exc).__name__)
             return 0
 
     def select_modules_dialog(self):
@@ -48,7 +49,8 @@ class XrefGenPresenter:
                     break
                 selected_names.append(remaining.pop(idx))
             return selected_names
-        except (TypeError, ValueError, AttributeError, RuntimeError):
+        except (TypeError, ValueError, AttributeError, RuntimeError) as exc:
+            warn("Could not show module selection", event_name="ui.module_selection_unavailable", error_type=type(exc).__name__)
             return []
 
     @staticmethod
@@ -75,7 +77,7 @@ class XrefGenPresenter:
         current = self.config.get("general.min_confidence", 0.5)
         ask_str = getattr(ida_kernwin, "ask_str", None)
         if ask_str is None:
-            info("Configuration UI unavailable; edit xrefgen_config.json manually")
+            info("Configuration UI unavailable; edit xrefgen_config.json manually", event_name="ui.configuration_unavailable")
             return
         value = ask_str(str(current), 0, "Minimum candidate confidence (0..1)")
         if value is None:
@@ -83,10 +85,10 @@ class XrefGenPresenter:
         try:
             confidence = max(0.0, min(1.0, float(value)))
         except (TypeError, ValueError):
-            info("Invalid confidence; keeping current value")
+            info("Invalid confidence; keeping current value", event_name="configuration.confidence_invalid")
             return
         self.config.config.setdefault("general", {})["min_confidence"] = confidence
-        info(f"Minimum confidence set to {confidence:.2f} for this session")
+        info("Minimum confidence updated for this session", event_name="configuration.confidence_updated", min_confidence=confidence)
 
     def show_statistics(self):
         stats = self.optimizer.get_statistics()
@@ -101,7 +103,7 @@ class XrefGenPresenter:
         try:
             ida_kernwin.info("%s", str(msg))
         except (TypeError, ValueError, AttributeError, RuntimeError):
-            warn("Unable to show analysis statistics in IDA UI")
+            warn("Unable to show analysis statistics in IDA UI", event_name="ui.statistics_unavailable")
             print(msg)
 
     def save_results(

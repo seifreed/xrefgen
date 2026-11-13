@@ -1,6 +1,8 @@
 """Security and concurrency contracts for the shared logging boundary."""
 
 import json
+import os
+import stat
 from concurrent.futures import ThreadPoolExecutor
 
 from modules.presentation import logger
@@ -15,6 +17,24 @@ def test_common_credentials_are_redacted(capsys):
     assert "secret" not in event["message"]
     assert "abc.def" not in event["message"]
     assert event["message"].count("[REDACTED]") >= 4
+
+
+def test_quoted_secrets_and_multiline_values_are_redacted(capsys):
+    logger.configure(None, "info")
+    logger.info('config {"api_key": "quoted secret value"}\nnext line')
+    event = json.loads(capsys.readouterr().out)
+    assert "quoted secret value" not in event["message"]
+    assert "next line" in event["message"]
+    assert "\n" not in event["message"]
+
+
+def test_oversized_messages_and_fields_are_bounded(capsys):
+    logger.configure(None, "info")
+    logger.info("x" * 100_000, diagnostic="y" * 100_000)
+    event = json.loads(capsys.readouterr().out)
+    assert len(event["message"]) < logger._MAX_TEXT_CHARS + 32
+    assert len(event["diagnostic"]) < logger._MAX_TEXT_CHARS + 32
+    assert event["message"].endswith("[TRUNCATED]")
 
 
 def test_concurrent_records_remain_independent(capsys):
@@ -168,8 +188,17 @@ def test_filtered_debug_skips_sanitization(monkeypatch):
 def test_file_sink_rotates_at_configured_size(tmp_path):
     path = tmp_path / "events.jsonl"
     logger.configure(str(path), "info")
-    logger.info("x" * 2_500_000)
-    logger.info("y" * 2_500_000)
+    for _ in range(320):
+        logger.info("x" * logger._MAX_TEXT_CHARS)
     assert path.exists()
     assert (tmp_path / "events.jsonl.1").exists()
+
+
+def test_file_sink_is_owner_only_on_posix(tmp_path):
+    if os.name != "posix":
+        return
+    path = tmp_path / "private.jsonl"
+    logger.configure(str(path), "info")
+    logger.info("private local event")
+    assert stat.S_IMODE(path.stat().st_mode) == 0o600
     assert path.stat().st_size < 5_000_000

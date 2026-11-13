@@ -116,25 +116,33 @@ class XrefGen:
     def _run(self, modules: List[str] = None, incremental: bool = None):
         """Run the cross-reference generation"""
         self.start_time = time.time()
-        try:
-            bin_path = ida_nalt.get_input_file_path()
-        except (TypeError, ValueError, AttributeError):
-            bin_path = None
-        _info("Analysis started")
-        _info(f"Binary: {os.path.basename(ida_nalt.get_input_file_path())}")
-        _info(f"Architecture: {self._get_arch_name()}")
+        logger.info(
+            "Analysis context",
+            event_name="analysis.context",
+            binary=os.path.basename(ida_nalt.get_input_file_path()),
+            architecture=self._get_arch_name(),
+        )
 
         # Wait for auto-analysis to complete
         if not self._wait_for_analysis():
-            _warn("IDA analysis not complete, results may be incomplete")
+            _warn(
+                "IDA analysis not complete; results may be incomplete",
+                event_name="analysis.ida_not_ready",
+                status="partial",
+            )
 
         # Refresh caches for IDA-backed analyzers (function ranges, validation cache)
         for module in self.manager.modules:
             if hasattr(module, "refresh_caches"):
                 try:
                     module.refresh_caches()
-                except (TypeError, ValueError, AttributeError, RuntimeError):
-                    _warn(f"Cache refresh failed for {module.get_name()}")
+                except (TypeError, ValueError, AttributeError, RuntimeError) as exc:
+                    _warn(
+                        "Analyzer cache refresh failed",
+                        event_name="module.cache_refresh_failed",
+                        module=module.get_name(),
+                        error_type=type(exc).__name__,
+                    )
 
         # Check for incremental analysis
         if incremental is None:
@@ -220,7 +228,12 @@ class XrefGen:
                 if tkinds:
                     for key, val in tkinds.items():
                         taint_kinds[key] = val
-        except (TypeError, ValueError, AttributeError, KeyError):
+        except (TypeError, ValueError, AttributeError, KeyError) as exc:
+            _warn(
+                "Result evidence aggregation failed",
+                event_name="analysis.evidence_aggregation_failed",
+                error_type=type(exc).__name__,
+            )
             evidence_counts = {}
             evidence_types = {}
             taint_kinds = {}
@@ -317,15 +330,23 @@ class XrefGen:
 
         elapsed = self.end_time - self.start_time
 
-        _info(f"Analysis completed: xrefs={self.total_xrefs}, duration_sec={elapsed:.3f}, modules={len(self.manager.modules)}")
-
         if self.config.get("modules.performance.enabled"):
             stats = self.optimizer.get_statistics()
-            _info(f"Performance statistics: cache_enabled={stats['cache_enabled']}, incremental={stats['incremental_enabled']}, cached_functions={stats['cached_functions']}, cache_size_mb={stats['cache_size_mb']:.2f}")
+            _info(
+                "Analysis performance statistics",
+                event_name="analysis.performance_statistics",
+                cache_enabled=stats["cache_enabled"],
+                incremental=stats["incremental_enabled"],
+                cached_functions=stats["cached_functions"],
+                cached_analyses=stats["cached_analyses"],
+                cache_size_mb=stats["cache_size_mb"],
+                duration_ms=round(elapsed * 1000, 3),
+                result_count=self.total_xrefs,
+            )
 
     def interactive_mode(self):
         """Run in interactive mode with preview"""
-        _info("Interactive mode started")
+        _info("Interactive mode started", event_name="plugin.interactive_started")
         choice = self.presenter.show_main_menu()
 
         if choice == 0:  # Run full analysis
@@ -338,7 +359,6 @@ class XrefGen:
             self._configure_dialog()
         elif choice == 4:  # Clear cache
             self.optimizer.clear_cache()
-            _info("Cache cleared")
         elif choice == 5:  # View statistics
             self._show_statistics()
         elif choice == 6:  # Exit

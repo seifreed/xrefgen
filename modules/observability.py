@@ -2,6 +2,7 @@
 
 import json
 import logging
+import os
 import re
 import sys
 from math import isfinite
@@ -14,6 +15,12 @@ from typing import Optional
 _LEVELS = {"trace": 5, "debug": logging.DEBUG, "info": logging.INFO,
            "warn": logging.WARNING, "error": logging.ERROR,
            "fatal": logging.CRITICAL, "critical": logging.CRITICAL}
+_MAX_TEXT_CHARS = 16_384
+_MAX_FIELDS = 64
+_SECRET_ASSIGNMENT = re.compile(
+    r"(?i)([\"']?(?:password|passwd|token|api[_-]?key|authorization|cookie)[\"']?\s*[=:]\s*)"
+    r'("[^\"]*"|\'[^\']*\'|[^\s,;]+)'
+)
 logging.addLevelName(5, "TRACE")
 _logger = logging.getLogger("xrefgen")
 _logger.propagate = False
@@ -26,8 +33,9 @@ _event_context = ContextVar("xrefgen_log_context", default=None)
 def _sanitize(value):
     safe = re.sub(r"[\x00-\x1f\x7f]", " ", str(value))
     safe = re.sub(r"(?i)bearer\s+[A-Za-z0-9._~+/=-]+", "Bearer [REDACTED]", safe)
-    safe = re.sub(r"(?i)(password|passwd|token|api[_-]?key|authorization|cookie)(\s*[=:]\s*)([^\s,;]+)", r"\1\2[REDACTED]", safe)
-    return re.sub(r"-----BEGIN [^-]*PRIVATE KEY-----.*?-----END [^-]*PRIVATE KEY-----", "[REDACTED PRIVATE KEY]", safe, flags=re.IGNORECASE)
+    safe = _SECRET_ASSIGNMENT.sub(r"\1[REDACTED]", safe)
+    safe = re.sub(r"-----BEGIN [^-]*PRIVATE KEY-----.*?-----END [^-]*PRIVATE KEY-----", "[REDACTED PRIVATE KEY]", safe, flags=re.IGNORECASE)
+    return safe if len(safe) <= _MAX_TEXT_CHARS else safe[:_MAX_TEXT_CHARS] + " [TRUNCATED]"
 
 
 class _JsonFormatter(logging.Formatter):
@@ -60,6 +68,12 @@ class _TextFormatter(_JsonFormatter):
 
 class _SafeRotatingFileHandler(RotatingFileHandler):
     """A broken optional file sink must not interrupt IDA analysis or leak handler errors."""
+
+    def _open(self):
+        stream = super()._open()
+        if os.name == "posix":
+            os.chmod(self.baseFilename, 0o600)
+        return stream
 
     def handleError(self, record):
         return
@@ -100,7 +114,9 @@ def _emit(level_name: str, msg: str, exc_info=False, **fields):
     if _LEVELS[level_name] < _logger.getEffectiveLevel():
         return
     normalized = {}
-    for key, value in fields.items():
+    for field_index, (key, value) in enumerate(fields.items()):
+        if field_index >= _MAX_FIELDS:
+            break
         if not re.fullmatch(r"[a-z][a-z0-9_]{0,63}", key) or key in {"timestamp", "level", "service", "component", "message", "stack_trace"}:
             continue
         if not isinstance(value, (str, int, float, bool)) and value is not None:
