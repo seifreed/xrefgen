@@ -24,7 +24,7 @@ The first progress reply used a rough `3/10` estimate before scoring each dimens
 
 ## Current in-progress score
 
-Evidence through commit `2642531` (building on the earlier commits listed in git history): standard-library logging moved below presentation, JSON UTC records and structured fields, TRACE–FATAL levels, bounded rotating file output, credential/control-character/private-key redaction, observable configuration fallback, concurrent and sink-failure tests, filtered-event fast path, sanitized exception type/stack, scoped analysis correlation, plugin shutdown and launch failure logging, structured artifact events with path minimization, module/analysis lifecycle events, observable fallbacks for CFG/profile failures, and successful IDA 9.5 execution of both the module pipeline and `XrefGen.run()` with isolated artifact assertions. The maintained selection passed 39 tests, including an actual rotation check. Many locally present test files are untracked and should not be treated as repository-owned baseline tests.
+Evidence through commit `290170d` (building on the earlier commits listed in git history): standard-library logging moved below presentation, JSON UTC records and structured fields, TRACE–FATAL levels, bounded rotating file output, credential/control-character/private-key redaction, observable configuration fallback, concurrent and sink-failure tests, filtered-event fast path, sanitized exception type/stack, scoped analysis correlation, plugin shutdown and launch failure logging, structured artifact events with path minimization, module/analysis lifecycle events, observable fallbacks for CFG/profile failures, and successful IDA 9.5 execution of module analysis plus `XrefGen.run()` with isolated artifact assertions and JSONL file-sink readback. The maintained selection passed 39 tests, including an actual rotation check. Many locally present test files are untracked and should not be treated as repository-owned baseline tests.
 
 | Dimension | Current | Remaining evidence/gap |
 |---|---:|---|
@@ -37,7 +37,7 @@ Evidence through commit `2642531` (building on the earlier commits listed in git
 | Performance and resilience | 8 | 20,000-event in-memory benchmark: JSON INFO ~48,987 events/s, filtered DEBUG ~3,901,328 calls/s; bounded rotation and non-fatal file sink. IDA-thread impact remains unmeasured. |
 | Configuration and portability | 6 | Invalid level/file sink fall back with a structured warning; no environment selector or retention configuration beyond fixed bounds. |
 | Error handling | 7 | Analysis boundary logs uncaught exceptions with sanitized stack and re-raises; remaining best-effort catches require review. |
-| Testing and verification | 8 | 39 maintained tests pass; IDA 9.5 smoke test ran module analysis and production orchestration, checked correlation/duration/artifact events and output files. The entire repository test suite still includes conflicting untracked tests. |
+| Testing and verification | 8 | 39 maintained tests pass; IDA 9.5 smoke test ran module analysis and production orchestration, checked correlated lifecycle/artifact events, JSONL file-sink readback and output files. The entire repository test suite still includes conflicting untracked tests. |
 | **Provisional mean** | **7.2** | **72 / 10 dimensions; not final or release-ready** |
 
 Do not use the provisional score as a completion claim. A final score requires resolving the remaining gaps, running the maintained test suite, and verifying the plugin lifecycle in IDA or documenting a genuine environment limitation.
