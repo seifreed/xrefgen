@@ -218,6 +218,9 @@ with tempfile.TemporaryDirectory(prefix="xrefgen-observability-") as output_dir:
         raise AssertionError("Artifact events leaked output filenames")
     if output_dir in json.dumps(orchestrator_events):
         raise AssertionError("Orchestrator events leaked temporary output paths")
+    input_basename = os.path.basename(ida_nalt.get_input_file_path())
+    if input_basename and input_basename in json.dumps(orchestrator_events):
+        raise AssertionError("Orchestrator events leaked the analyzed binary name")
 
     class FailingAnalyzer:
         enabled = True

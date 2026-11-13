@@ -133,7 +133,6 @@ class XrefGen:
         logger.info(
             "Analysis context",
             event_name="analysis.context",
-            binary=os.path.basename(ida_nalt.get_input_file_path()),
             architecture=self._get_arch_name(),
         )
 
