@@ -39,7 +39,8 @@ class XrefGenPlugin(idaapi.plugin_t):
 
     def term(self):
         try:
-            from modules.observability import shutdown
+            from modules.observability import info, shutdown
+            info("XrefGen plugin shutting down", event_name="plugin.shutdown")
             shutdown()
         except ImportError:
             pass

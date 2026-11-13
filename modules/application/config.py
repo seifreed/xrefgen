@@ -218,7 +218,10 @@ class Config:
         self.validation_errors = self.validate_config(self.config)
         if self.validation_errors:
             for err in self.validation_errors:
-                warn(f"Configuration warning: {err}")
+                warn(
+                    f"Configuration warning: {err}",
+                    event_name="configuration.validation_warning",
+                )
 
     def load_config(self) -> Dict[str, Any]:
         """Load configuration from file or use defaults."""

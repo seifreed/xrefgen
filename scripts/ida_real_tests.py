@@ -131,6 +131,26 @@ if expected_path:
 
 print("[IDA Real Tests] OK: modules executed, results validated")
 
+if os.environ.get("XREFGEN_ASSERT_EQUIVALENCE"):
+    equivalence_cfg = copy.deepcopy(cfg)
+    performance_cfg = equivalence_cfg.setdefault("modules", {}).setdefault("performance", {})
+    performance_cfg["use_cache"] = False
+    performance_cfg["incremental"] = True
+
+    full_optimizer = PerformanceOptimizer(performance_cfg)
+    full_results = full_optimizer.analyze_sequential(
+        build_modules(equivalence_cfg), modified_only=False
+    )
+    incremental_optimizer = PerformanceOptimizer(performance_cfg)
+    incremental_results = incremental_optimizer.analyze_sequential(
+        build_modules(equivalence_cfg),
+        modified_only=True,
+        modified_functions=set(idautils.Functions()),
+    )
+    if full_results != incremental_results:
+        raise ValueError("full and incremental analysis results differ")
+    print("[IDA Real Tests] OK: full/incremental results are equivalent")
+
 # Exercise the production orchestrator and artifact-writing path with isolated outputs.
 with tempfile.TemporaryDirectory(prefix="xrefgen-observability-") as output_dir:
     orchestrator_cfg = copy.deepcopy(cfg)
@@ -196,25 +216,15 @@ with tempfile.TemporaryDirectory(prefix="xrefgen-observability-") as output_dir:
         for event in file_events
     ):
         raise AssertionError("Configured JSONL sink omitted the correlated completion event")
+    if not any(event.get("event_name") == "service.started" for event in file_events):
+        raise AssertionError("Configured JSONL sink omitted the service startup event")
+
+    from xrefgen_plugin import XrefGenPlugin
+
+    XrefGenPlugin().term()
+    with open(general["log_file"], encoding="utf-8") as log_file:
+        shutdown_events = [json.loads(line) for line in log_file]
+    if not any(event.get("event_name") == "plugin.shutdown" for event in shutdown_events):
+        raise AssertionError("Plugin termination event was not flushed to the configured sink")
 
 print("[IDA Real Tests] OK: orchestrator events correlated and artifacts written")
-
-if os.environ.get("XREFGEN_ASSERT_EQUIVALENCE"):
-    equivalence_cfg = copy.deepcopy(cfg)
-    performance_cfg = equivalence_cfg.setdefault("modules", {}).setdefault("performance", {})
-    performance_cfg["use_cache"] = False
-    performance_cfg["incremental"] = True
-
-    full_optimizer = PerformanceOptimizer(performance_cfg)
-    full_results = full_optimizer.analyze_sequential(
-        build_modules(equivalence_cfg), modified_only=False
-    )
-    incremental_optimizer = PerformanceOptimizer(performance_cfg)
-    incremental_results = incremental_optimizer.analyze_sequential(
-        build_modules(equivalence_cfg),
-        modified_only=True,
-        modified_functions=set(idautils.Functions()),
-    )
-    if full_results != incremental_results:
-        raise ValueError("full and incremental analysis results differ")
-    print("[IDA Real Tests] OK: full/incremental results are equivalent")

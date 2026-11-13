@@ -45,7 +45,6 @@ class XrefGen:
     def __init__(self, config_file: str = None):
         """Initialize XrefGen with configuration"""
         logger.configure(None)
-        _info(f"XrefGen v{__version__} initialized")
 
         # Load configuration
         self.config = Config(config_file)
@@ -53,6 +52,11 @@ class XrefGen:
             self.config.get("general.log_file"),
             self.config.get("general.log_level", "info"),
             self.config.get("general.log_format", "json"),
+        )
+        logger.info(
+            "XrefGen initialized",
+            event_name="service.started",
+            version=__version__,
         )
 
         # Initialize performance optimizer
