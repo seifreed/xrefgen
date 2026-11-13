@@ -365,3 +365,23 @@ def test_file_sink_is_owner_only_on_posix(tmp_path, monkeypatch):
     assert requested_modes == [0o600]
     assert stat.S_IMODE(path.stat().st_mode) == 0o600
     assert path.stat().st_size < 5_000_000
+
+
+def test_existing_file_is_restricted_before_open_on_posix(tmp_path, monkeypatch):
+    if os.name != "posix":
+        return
+    path = tmp_path / "existing.jsonl"
+    path.write_text("previous event\n")
+    path.chmod(0o644)
+    original_open = os.open
+    observed_modes = []
+
+    def secure_open(file, flags, mode=0o777):
+        if os.fspath(file) == os.fspath(path):
+            observed_modes.append(stat.S_IMODE(os.stat(file).st_mode))
+        return original_open(file, flags, mode)
+
+    monkeypatch.setattr("modules.observability.os.open", secure_open)
+    logger.configure(str(path), "info")
+    assert observed_modes == [0o600]
+    assert stat.S_IMODE(path.stat().st_mode) == 0o600

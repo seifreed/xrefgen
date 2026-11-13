@@ -99,6 +99,10 @@ class _SafeRotatingFileHandler(RotatingFileHandler):
     def _open(self):
         if os.name != "posix":
             return super()._open()
+        try:
+            os.chmod(self.baseFilename, 0o600)
+        except FileNotFoundError:
+            pass
         stream = open(
             self.baseFilename,
             self.mode,
@@ -106,7 +110,6 @@ class _SafeRotatingFileHandler(RotatingFileHandler):
             errors=self.errors,
             opener=lambda path, flags: os.open(path, flags, 0o600),
         )
-        os.chmod(self.baseFilename, 0o600)
         return stream
 
     def handleError(self, record):
