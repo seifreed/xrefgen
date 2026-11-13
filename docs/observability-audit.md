@@ -22,7 +22,7 @@ The baseline is the repository state before commit `00a57e0` (logger source in i
 
 ## Current in-progress score
 
-Evidence through commits `ace5ab2`, `b0c753a`, and `1b7f868` (building on the earlier commits listed in git history): standard-library logging moved below presentation, JSON UTC records and structured fields, TRACE–FATAL levels, bounded rotating file output, credential/control-character/private-key redaction, observable configuration fallback, concurrent and sink-failure tests, filtered-event fast path, sanitized exception type/stack, scoped analysis correlation, plugin shutdown and launch failure logging, structured artifact events with path minimization, and lifecycle/module/cache/analyzer instrumentation. Maintained selections passed 38 and 26 tests respectively. Many locally present test files are untracked and should not be treated as repository-owned baseline tests.
+Evidence through commits `ace5ab2`, `b0c753a`, `1b7f868`, `1115c82`, and `dbe173b` (building on the earlier commits listed in git history): standard-library logging moved below presentation, JSON UTC records and structured fields, TRACE–FATAL levels, bounded rotating file output, credential/control-character/private-key redaction, observable configuration fallback, concurrent and sink-failure tests, filtered-event fast path, sanitized exception type/stack, scoped analysis correlation, plugin shutdown and launch failure logging, structured artifact events with path minimization, module/analysis lifecycle events, and observable fallbacks for CFG/profile failures. The maintained selection passed 39 tests, including an actual rotation check. Many locally present test files are untracked and should not be treated as repository-owned baseline tests.
 
 | Dimension | Current | Remaining evidence/gap |
 |---|---:|---|
@@ -35,7 +35,7 @@ Evidence through commits `ace5ab2`, `b0c753a`, and `1b7f868` (building on the ea
 | Performance and resilience | 8 | 20,000-event in-memory benchmark: JSON INFO ~48,987 events/s, filtered DEBUG ~3,901,328 calls/s; bounded rotation and non-fatal file sink. IDA-thread impact remains unmeasured. |
 | Configuration and portability | 6 | Invalid level/file sink fall back with a structured warning; no environment selector or retention configuration beyond fixed bounds. |
 | Error handling | 7 | Analysis boundary logs uncaught exceptions with sanitized stack and re-raises; remaining best-effort catches require review. |
-| Testing and verification | 7 | 38 maintained tests across logger, module events, config, registry, cache, results, corpus, taint, and wasm pass; global suite includes conflicting untracked tests, and IDA runtime tests are not run. |
+| Testing and verification | 7 | 39 maintained tests across logger (including file rotation), module events, config, registry, cache, results, corpus, taint, and wasm pass; global suite includes conflicting untracked tests, and IDA runtime tests are not run. |
 | **Provisional mean** | **7.0** | **70 / 10 dimensions; not final or release-ready** |
 
 Do not use the provisional score as a completion claim. A final score requires resolving the remaining gaps, running the maintained test suite, and verifying the plugin lifecycle in IDA or documenting a genuine environment limitation.
