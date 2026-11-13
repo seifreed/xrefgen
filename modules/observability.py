@@ -84,7 +84,7 @@ def _emit(level_name: str, msg: str, exc_info=False, **fields):
     normalized = {}
     for key, value in fields.items():
         if not re.fullmatch(r"[a-z][a-z0-9_]{0,63}", key) or key in {"timestamp", "level", "service", "component", "message", "stack_trace"}:
-            raise ValueError(f"Invalid or reserved log field: {key}")
+            continue
         if isinstance(value, float) and not isfinite(value):
             continue
         normalized[key] = value if isinstance(value, (str, int, float, bool)) or value is None else _sanitize(value)

@@ -111,14 +111,12 @@ def test_structured_event_fields_are_safe_and_normalized(capsys):
     assert event["token"] == "[REDACTED]"
 
 
-def test_reserved_fields_are_rejected():
+def test_reserved_fields_are_ignored_without_affecting_logging(capsys):
     logger.configure(None, "info")
-    try:
-        logger.info("bad", level="fatal")
-    except ValueError:
-        pass
-    else:
-        raise AssertionError("reserved field override accepted")
+    logger.info("message remains", level="fatal")
+    event = json.loads(capsys.readouterr().out)
+    assert event["message"] == "message remains"
+    assert event["level"] == "info"
 
 
 def test_invalid_level_falls_back_with_structured_warning(capsys):
