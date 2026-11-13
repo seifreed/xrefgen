@@ -28,14 +28,14 @@ Evidence through commit `0f5b3cb` plus follow-up commits `e2594d7` and `b9c2df1`
 |---|---:|---|
 | Architecture and decoupling | 6 | Shared logger used broadly; validate layering/import behavior inside IDA and component attribution. |
 | Functional coverage | 6 | Most diagnostics migrated; audit all error paths and run representative IDA analyses. |
-| Event quality | 5 | Lifecycle, counts and durations exist; some events remain free-form and not consistently named. |
-| Structure and consistency | 7 | JSON UTC schema exists; component is currently always `xrefgen`, and operation/status fields are not normalized. |
+| Event quality | 6 | Analysis start/finish/failure carry stable event names, outcome and duration; many other events remain free-form. |
+| Structure and consistency | 8 | JSON UTC schema with optional structured fields; component is currently always `xrefgen`. |
 | Context and correlation | 5 | A per-run correlation ID and operation are scoped with `ContextVar`; no distributed tracing is justified for the current single-process design. |
 | Security and privacy | 6 | Common credentials, bearer values, private keys and controls are redacted; broader sensitive-data review remains. |
 | Performance and resilience | 7 | Standard handler locking and bounded rotation; no benchmark or IDA-thread impact measurement. |
 | Configuration and portability | 5 | Level and file sink supported; no environment selector or retention configuration beyond fixed bounds. |
 | Error handling | 7 | Analysis boundary logs uncaught exceptions with sanitized stack and re-raises; remaining best-effort catches require review. |
 | Testing and verification | 6 | 31 explicitly selected tracked tests pass; global suite is polluted by untracked tests, and IDA runtime tests are not run. |
-| **Provisional mean** | **6.0** | **60 / 10 dimensions; not final or release-ready** |
+| **Provisional mean** | **6.2** | **62 / 10 dimensions; not final or release-ready** |
 
 Do not use the provisional score as a completion claim. A final score requires resolving the remaining gaps, running the maintained test suite, and verifying the plugin lifecycle in IDA or documenting a genuine environment limitation.

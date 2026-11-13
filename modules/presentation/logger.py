@@ -4,6 +4,7 @@ import json
 import logging
 import re
 import sys
+from math import isfinite
 from contextlib import contextmanager
 from contextvars import ContextVar
 from datetime import datetime, timezone
@@ -40,6 +41,7 @@ class _JsonFormatter(logging.Formatter):
             event["error_type"] = record.exc_info[0].__name__
             event["stack_trace"] = _sanitize(self.formatException(record.exc_info))
         event.update(_event_context.get() or {})
+        event.update(getattr(record, "xrefgen_fields", {}))
         return json.dumps(event, ensure_ascii=True)
 
 
@@ -73,21 +75,32 @@ def configure(log_file: Optional[str], level: str = "info"):
     _log_file = log_file
 
 
-def _emit(level: str, msg: str):
-    _logger.log(_LEVELS[level], _sanitize(msg))
+def _emit(level_name: str, msg: str, exc_info=False, **fields):
+    normalized = {}
+    for key, value in fields.items():
+        if not re.fullmatch(r"[a-z][a-z0-9_]{0,63}", key) or key in {"timestamp", "level", "service", "component", "message", "stack_trace"}:
+            raise ValueError(f"Invalid or reserved log field: {key}")
+        if isinstance(value, float) and not isfinite(value):
+            continue
+        normalized[key] = value if isinstance(value, (str, int, float, bool)) or value is None else _sanitize(value)
+        if re.search(r"(?i)(password|passwd|secret|token|api.?key|authorization|cookie|private.?key)", key):
+            normalized[key] = "[REDACTED]"
+        if isinstance(normalized[key], str):
+            normalized[key] = _sanitize(normalized[key])
+    _logger.log(_LEVELS[level_name], _sanitize(msg), exc_info=exc_info, extra={"xrefgen_fields": normalized})
 
 
-def trace(msg: str): _emit("trace", msg)
-def debug(msg: str): _emit("debug", msg)
-def info(msg: str): _emit("info", msg)
-def warn(msg: str): _emit("warn", msg)
-def error(msg: str): _emit("error", msg)
-def critical(msg: str): _emit("critical", msg)
+def trace(msg: str, **fields): _emit("trace", msg, **fields)
+def debug(msg: str, **fields): _emit("debug", msg, **fields)
+def info(msg: str, **fields): _emit("info", msg, **fields)
+def warn(msg: str, **fields): _emit("warn", msg, **fields)
+def error(msg: str, **fields): _emit("error", msg, **fields)
+def critical(msg: str, **fields): _emit("critical", msg, **fields)
 
 
-def exception(msg: str):
+def exception(msg: str, **fields):
     """Record the active exception with its sanitized type and stack."""
-    _logger.error(_sanitize(msg), exc_info=True)
+    _emit("error", msg, exc_info=True, **fields)
 
 
 def shutdown():

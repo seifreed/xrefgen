@@ -87,10 +87,25 @@ class XrefGen:
     def run(self, modules: List[str] = None, incremental: bool = None):
         """Run one correlated analysis operation."""
         with logger.operation_context("analysis", uuid4().hex):
+            started = time.perf_counter()
+            logger.info("Analysis started", event_name="analysis.started", status="started")
             try:
-                return self._run(modules, incremental)
+                result = self._run(modules, incremental)
+                logger.info(
+                    "Analysis finished",
+                    event_name="analysis.finished",
+                    status="completed",
+                    duration_ms=round((time.perf_counter() - started) * 1000, 3),
+                    result_count=self.total_xrefs,
+                )
+                return result
             except Exception:
-                logger.exception("Analysis operation failed")
+                logger.exception(
+                    "Analysis operation failed",
+                    event_name="analysis.failed",
+                    status="failed",
+                    duration_ms=round((time.perf_counter() - started) * 1000, 3),
+                )
                 raise
 
     def _run(self, modules: List[str] = None, incremental: bool = None):

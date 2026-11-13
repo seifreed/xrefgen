@@ -99,3 +99,22 @@ def test_operation_context_does_not_leak_between_threads(capsys):
     by_message = {event["message"]: event for event in events}
     assert "correlation_id" not in by_message["child"]
     assert by_message["parent"]["correlation_id"] == "parent"
+
+
+def test_structured_event_fields_are_safe_and_normalized(capsys):
+    logger.configure(None, "info")
+    logger.info("finished", event_name="analysis.finished", duration_ms=2.5, status="completed", token="secret")
+    event = json.loads(capsys.readouterr().out)
+    assert event["event_name"] == "analysis.finished"
+    assert event["duration_ms"] == 2.5
+    assert event["token"] == "[REDACTED]"
+
+
+def test_reserved_fields_are_rejected():
+    logger.configure(None, "info")
+    try:
+        logger.info("bad", level="fatal")
+    except ValueError:
+        pass
+    else:
+        raise AssertionError("reserved field override accepted")
