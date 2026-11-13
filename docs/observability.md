@@ -11,3 +11,9 @@ The remaining core `print` is a user-visible fallback for the statistics dialog 
 Use INFO for lifecycle transitions and counts, WARN for recoverable degradation (such as invalid configuration or cache fallback), ERROR for failed operations, and CRITICAL/FATAL only when the plugin cannot continue. DEBUG and TRACE are for opt-in diagnosis. Avoid duplicate exception reports across layers.
 
 Each analysis run creates a random correlation ID and places it, with the `analysis` operation name, in a `ContextVar` scope. Start, finish, and failure events carry stable event names, status, and duration; completion includes result count. The scope resets on normal return, early return, and exception. Structured event values must be scalar (`str`, integer, finite float, boolean, or null); nested objects are dropped to avoid accidentally logging request, configuration, or other payload data. The plugin currently has no distributed requests, queues, or background service requiring W3C trace context or OpenTelemetry. Metrics are not generated because there is no persistent service process or monitoring endpoint. For new analysis flows, include relevant module/count/duration fields as structured arguments, never invented trace identifiers. Run `pytest -q tests/test_structured_logger_contract.py tests/test_presentation_logger.py` for structured output, filtering, redaction, propagation, concurrency, rotation, and sink failure checks.
+
+Example from the failing-analyzer integration fixture (timestamp and duration vary):
+
+```json
+{"timestamp":"2026-11-13T16:10:45.326453+00:00","level":"error","service":"xrefgen","component":"module_manager","message":"Analysis module failed","error_type":"RuntimeError","error_chain":"RuntimeError","stack_trace":"File \"module_manager.py\", line 46, in run_analysis File \"test_logging_integration.py\", line 20, in analyze","event_name":"module.failed","module":"FailingAnalyzer","status":"failed","duration_ms":0.092}
+```
