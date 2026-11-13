@@ -1,0 +1,63 @@
+name: release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install --upgrade pytest
+      - run: python -m pytest -q
+      - name: Build and validate release asset
+        shell: bash
+        run: |
+          set -euo pipefail
+          VERSION=$(python -c 'from modules import __version__; print(__version__)')
+          test "$GITHUB_REF_NAME" = "v$VERSION"
+          mkdir -p dist
+          python scripts/build_release.py "dist/xrefgen-$VERSION.zip"
+          python - "$VERSION" <<'PY'
+          import sys
+          import zipfile
+
+          version = sys.argv[1]
+          with zipfile.ZipFile(f"dist/xrefgen-{version}.zip") as archive:
+              names = set(archive.namelist())
+          required = {
+              "xrefgen/xrefgen.py",
+              "xrefgen/xrefgen_plugin.py",
+              "xrefgen/xrefgen_config.json",
+              "xrefgen/modules/observability.py",
+              "xrefgen/docs/compatibility.md",
+              "xrefgen/SECURITY.md",
+          }
+          missing = required - names
+          if missing:
+              raise SystemExit(f"release asset is missing: {sorted(missing)}")
+          PY
+          awk -v version="$VERSION" '$0 == "## " version { found=1; next } /^## / && found { exit } found' CHANGELOG.md > dist/release-notes.md
+          test -s dist/release-notes.md
+      - name: Create or update GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG="$GITHUB_REF_NAME"
+          VERSION="${TAG#v}"
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release edit "$TAG" --title "XrefGen $VERSION" --notes-file dist/release-notes.md
+            gh release upload "$TAG" "dist/xrefgen-$VERSION.zip" --clobber
+          else
+            gh release create "$TAG" "dist/xrefgen-$VERSION.zip" \
+              --title "XrefGen $VERSION" \
+              --notes-file dist/release-notes.md
+          fi

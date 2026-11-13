@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/IDA%20Pro-9.2%2B-orange?style=flat-square" alt="IDA Pro 9.2+">
+  <img src="https://img.shields.io/badge/IDA%20Pro-9.x-orange?style=flat-square" alt="IDA Pro 9.x">
   <img src="https://img.shields.io/badge/Output-XRefer%20Compatible-brightgreen?style=flat-square" alt="XRefer Compatible">
   <img src="https://img.shields.io/badge/License-MIT-green?style=flat-square" alt="License">
 </p>
@@ -23,7 +23,7 @@
 
 ## Overview
 
-**XrefGen 0.5.0-alpha.1** is a research-grade cross-reference generator that detects high-confidence indirect references and complex control-flow patterns that IDA Pro may miss. It feeds **Mandiant XRefer** only validated control-flow candidates; data-flow and obfuscation observations are exported separately.
+**XrefGen 1.0.0** is the first stable release of a cross-reference generator that detects high-confidence indirect references and complex control-flow patterns that IDA Pro may miss. It feeds **Mandiant XRefer** only validated control-flow candidates; data-flow and obfuscation observations are exported separately.
 
 It is especially useful for:
 - Modern compiled languages (Rust, Go, C++)
@@ -122,8 +122,9 @@ The `IDAUSR` environment variable can be used instead of the option.
 
 The installer copies the core and configuration to `scripts/xrefgen/` and the
 plugin entrypoint to `plugins/`, without deleting existing files. Open your
-binary in **IDA Pro 9.2+**, then run **XrefGen** from `Edit > Plugins` or run
-`xrefgen.py` from `File > Script file...`.
+binary in an IDA version listed in [the compatibility notes](docs/compatibility.md),
+then run **XrefGen** from `Edit > Plugins` or run `xrefgen.py` from
+`File > Script file...`.
 
 ## Quick Start
 
