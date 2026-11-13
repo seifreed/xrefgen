@@ -66,7 +66,12 @@ def build_modules(
             instances.append(cls(config.get("modules", {}).get(spec.key, {})))
         except (ImportError, AttributeError, KeyError, TypeError) as exc:
             if spec.optional:
-                warn(f"Optional module {spec.key} unavailable: {exc}")
+                warn(
+                    "Optional module unavailable",
+                    event_name="module.registration_skipped",
+                    module=spec.key,
+                    error_type=type(exc).__name__,
+                )
             else:
                 raise
 

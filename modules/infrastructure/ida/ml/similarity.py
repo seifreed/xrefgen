@@ -86,5 +86,9 @@ class SimilarityAnalyzer(IDAXrefAnalyzer):
 
             return results
         except (TypeError, ValueError, AttributeError, RuntimeError) as e:
-            error(f"Similarity analysis failed: {e}")
+            error(
+                "Similarity analysis failed",
+                event_name="similarity.analysis_failed",
+                error_type=type(e).__name__,
+            )
             return []

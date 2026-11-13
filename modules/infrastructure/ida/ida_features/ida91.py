@@ -450,6 +450,10 @@ class IDA91Analyzer(IDAXrefAnalyzer):
             # Metadata is useful to IDA but is not an xref candidate.
         except (TypeError, ValueError, AttributeError, RuntimeError) as exc:
             # Best-effort; do not fail the analysis if Lumina unreachable
-            warn(f"Lumina metadata refresh failed: {exc}")
+            warn(
+                "Lumina metadata refresh failed",
+                event_name="lumina.metadata_refresh_failed",
+                error_type=type(exc).__name__,
+            )
 
         return results

@@ -561,23 +561,23 @@ class DataFlowAnalyzer(IncrementalAnalyzer):
             # Source/sink logic for this function + its callers
             results.extend(self._analyze_taint_for_function(func_ea))
         except (TypeError, ValueError, AttributeError, RuntimeError) as e:
-            warn(f"Taint analysis unavailable: {e}")
+            warn("Taint analysis unavailable", error_type=type(e).__name__)
         try:
             if not self._slow:
                 results.extend(self._analyze_return_values_for_function(func_ea, func))
         except (TypeError, ValueError, AttributeError, RuntimeError) as e:
-            warn(f"Return value analysis unavailable: {e}")
+            warn("Return value analysis unavailable", error_type=type(e).__name__)
         try:
             if not self._slow:
                 results.extend(self._hexrays_taint_flow(func_ea))
         except (TypeError, ValueError, AttributeError, RuntimeError) as e:
-            warn(f"Hex-Rays taint analysis unavailable: {e}")
+            warn("Hex-Rays taint analysis unavailable", error_type=type(e).__name__)
         try:
             if not self._slow:
                 pointer_chains = self._find_pointer_chains(func, deadline)
                 results.extend(self._emit_pointer_chain_results(pointer_chains))
         except (TypeError, ValueError, AttributeError, RuntimeError) as e:
-            warn(f"Pointer chain analysis unavailable: {e}")
+            warn("Pointer chain analysis unavailable", error_type=type(e).__name__)
         return results
 
     def _analyze_taint_for_function(

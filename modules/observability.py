@@ -85,9 +85,11 @@ def _emit(level_name: str, msg: str, exc_info=False, **fields):
     for key, value in fields.items():
         if not re.fullmatch(r"[a-z][a-z0-9_]{0,63}", key) or key in {"timestamp", "level", "service", "component", "message", "stack_trace"}:
             continue
+        if not isinstance(value, (str, int, float, bool)) and value is not None:
+            continue
         if isinstance(value, float) and not isfinite(value):
             continue
-        normalized[key] = value if isinstance(value, (str, int, float, bool)) or value is None else _sanitize(value)
+        normalized[key] = value
         if re.search(r"(?i)(password|passwd|secret|token|api.?key|authorization|cookie|private.?key)", key):
             normalized[key] = "[REDACTED]"
         if isinstance(normalized[key], str):

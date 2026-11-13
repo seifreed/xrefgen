@@ -111,6 +111,14 @@ def test_structured_event_fields_are_safe_and_normalized(capsys):
     assert event["token"] == "[REDACTED]"
 
 
+def test_nested_fields_are_omitted_to_prevent_unreviewed_payload_logging(capsys):
+    logger.configure(None, "info")
+    logger.info("operation complete", details={"api_key": "private-value"})
+    event = json.loads(capsys.readouterr().out)
+    assert "details" not in event
+    assert "private-value" not in json.dumps(event)
+
+
 def test_reserved_fields_are_ignored_without_affecting_logging(capsys):
     logger.configure(None, "info")
     logger.info("message remains", level="fatal")
