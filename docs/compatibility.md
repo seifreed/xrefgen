@@ -8,10 +8,12 @@ the `ida_ida.inf_*` APIs and is intended for:
 | 9.1 | optional | compatibility target |
 | 9.2 | optional | primary target |
 | 9.3 | optional | primary target |
+| 9.5 | optional | real-IDA integration smoke-test passed |
 | Home | unavailable | controlled degradation |
 
-This repository does not contain IDA Pro or Hex-Rays, so these entries are
-targets rather than a certification claim. Run `scripts/ida_real_tests.py`
+Only IDA 9.5 has been exercised directly here: the plugin entry point and core
+imports loaded, and `scripts/ida_real_tests.py` passed. The 9.1–9.3 entries are
+compatibility targets, not certification claims. Run the integration script
 inside each installation and compare the exported JSON with a corpus fixture.
 WebAssembly support is experimental and parser-level: it covers static
 `call_indirect` table entries and `br_table` block targets when IDA exposes a

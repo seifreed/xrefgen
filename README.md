@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/IDA%20Pro-9.x-orange?style=flat-square" alt="IDA Pro 9.x">
+  <img src="https://img.shields.io/badge/IDA%20Pro-9.5%20smoke--tested-orange?style=flat-square" alt="IDA Pro 9.5 smoke-tested">
   <img src="https://img.shields.io/badge/Output-XRefer%20Compatible-brightgreen?style=flat-square" alt="XRefer Compatible">
   <img src="https://img.shields.io/badge/License-MIT-green?style=flat-square" alt="License">
 </p>
