@@ -142,7 +142,7 @@ class PerformanceOptimizer:
                     else:
                         warn("Cache version/config mismatch; starting fresh")
             except (json.JSONDecodeError, KeyError, ValueError, OSError) as e:
-                warn(f"Cache load failed; starting fresh: {e}")
+                warn("Cache load failed; starting fresh", error_type=type(e).__name__)
 
     def save_cache(self):
         """Save analysis results to JSON cache"""
@@ -174,12 +174,12 @@ class PerformanceOptimizer:
 
             info(f"Saved JSON cache with {len(self.function_cache)} functions")
         except (IOError, OSError, TypeError, ValueError) as e:
-            error(f"Cache save failed: {e}")
+            error("Cache save failed", error_type=type(e).__name__)
             try:
                 if temporary_file and os.path.exists(temporary_file):
                     os.remove(temporary_file)
             except OSError as cleanup_error:
-                warn(f"Temporary cache cleanup failed: {cleanup_error}")
+                warn("Temporary cache cleanup failed", error_type=type(cleanup_error).__name__)
 
     def get_modified_functions(self) -> Set[int]:
         """Detect functions modified since last analysis using reliable hashing"""
@@ -509,7 +509,7 @@ class PerformanceOptimizer:
                 try:
                     os.remove(os.path.join(self.cache_dir, file))
                 except OSError as exc:
-                    warn(f"Cache entry could not be removed: {exc}")
+                    warn("Cache entry could not be removed", error_type=type(exc).__name__)
         info("Cache cleared")
 
 

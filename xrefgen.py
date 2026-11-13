@@ -244,7 +244,7 @@ class XrefGen:
                 with open(full, "w", encoding="utf-8") as f_slow:
                     json.dump(profile, f_slow, indent=2)
         except (IOError, OSError, KeyError, TypeError) as exc:
-            _error(f"Slow-function report could not be written: {exc}")
+            _error("Slow-function report could not be written", error_type=type(exc).__name__)
 
         # Save cache if enabled
         if self.config.get("modules.performance.use_cache"):
