@@ -85,8 +85,13 @@ class _TextFormatter(_JsonFormatter):
         return f"{event['timestamp']} {event['level'].upper()} [{event['component']}] {event['message']}{suffix}"
 
 
+class _SafeStreamHandler(logging.StreamHandler):
+    def handleError(self, record):
+        return
+
+
 class _SafeRotatingFileHandler(RotatingFileHandler):
-    """A broken optional file sink must not interrupt IDA analysis or leak handler errors."""
+    """A broken optional sink must not interrupt IDA analysis or leak handler errors."""
 
     def _open(self):
         stream = super()._open()
@@ -113,7 +118,7 @@ def configure(
     shutdown()
     _logger.setLevel(selected)
     _level = selected
-    _logger.addHandler(logging.StreamHandler(sys.stdout))
+    _logger.addHandler(_SafeStreamHandler(sys.stdout))
     warnings = []
     if level_name not in _LEVELS:
         warnings.append(f"Unsupported log level {level_name!r}; using info")

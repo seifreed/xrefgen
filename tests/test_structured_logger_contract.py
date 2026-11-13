@@ -76,6 +76,26 @@ def test_file_write_failure_does_not_raise(capsys, tmp_path):
     assert json.loads(capsys.readouterr().out)["message"] == "still available"
 
 
+def test_console_write_failure_does_not_raise_or_leak(capsys):
+    logger.configure(None, "info")
+
+    class BrokenStream:
+        def write(self, _text):
+            raise OSError("token=private-value")
+
+        def flush(self):
+            pass
+
+    logger._logger.handlers[0].stream = BrokenStream()
+    try:
+        raise RuntimeError("password=another-secret")
+    except RuntimeError:
+        logger.exception("operation failed", token="field-secret")
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert captured.err == ""
+
+
 def test_private_key_material_is_redacted(capsys):
     logger.configure(None, "info")
     logger.info("-----BEGIN PRIVATE KEY-----secret\nkey-----END PRIVATE KEY-----")
