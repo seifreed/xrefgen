@@ -15,6 +15,7 @@ class ModuleManager:
         self.modules: List[XrefAnalyzer] = []
         self.results: List[AnalysisResult] = []
         self.results_by_module: Dict[str, List[AnalysisResult]] = {}
+        self.failed_modules: List[str] = []
 
     def register_module(self, module: XrefAnalyzer):
         """Register an analysis module."""
@@ -28,6 +29,7 @@ class ModuleManager:
         """Run analysis on all or selected modules."""
         self.results = []
         self.results_by_module = {}
+        self.failed_modules = []
 
         for module in self.modules:
             if selected_modules and module.get_name() not in selected_modules:
@@ -57,6 +59,7 @@ class ModuleManager:
                     duration_ms=round((time.perf_counter() - started) * 1000, 3),
                 )
                 self.results_by_module[module.get_name()] = []
+                self.failed_modules.append(module_name)
 
         return self.results
 

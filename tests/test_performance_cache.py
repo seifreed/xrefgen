@@ -96,6 +96,7 @@ class PerformanceCacheTests(unittest.TestCase):
         self.assertNotIn("profile-secret", output.getvalue())
         self.assertEqual(optimizer.last_profile["FailingAnalyzer"]["error_type"], "RuntimeError")
         self.assertNotIn("error", optimizer.last_profile["FailingAnalyzer"])
+        self.assertEqual(optimizer.failed_modules, ["FailingAnalyzer"])
 
 
 if __name__ == "__main__":

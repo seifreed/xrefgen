@@ -51,3 +51,4 @@ def test_module_failure_emits_sanitized_exception(capsys):
     assert failed["module"] == "FailingAnalyzer"
     assert failed["error_type"] == "RuntimeError"
     assert "secret-value" not in failed["stack_trace"]
+    assert manager.failed_modules == ["FailingAnalyzer"]

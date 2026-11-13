@@ -93,15 +93,23 @@ class XrefGen:
         """Run one correlated analysis operation."""
         with logger.operation_context("analysis", uuid4().hex):
             started = time.perf_counter()
+            self.optimizer.failed_modules = []
+            self.manager.failed_modules = []
             logger.info("Analysis started", event_name="analysis.started", status="started")
             try:
                 result = self._run(modules, incremental)
+                failed_modules = (
+                    self.optimizer.failed_modules
+                    if self.config.get("modules.performance.enabled")
+                    else self.manager.failed_modules
+                )
                 logger.info(
                     "Analysis finished",
                     event_name="analysis.finished",
-                    status="completed",
+                    status="partial" if failed_modules else "completed",
                     duration_ms=round((time.perf_counter() - started) * 1000, 3),
                     result_count=self.total_xrefs,
+                    failed_module_count=len(failed_modules),
                 )
                 return result
             except Exception:

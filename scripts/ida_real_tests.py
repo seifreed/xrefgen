@@ -203,11 +203,43 @@ with tempfile.TemporaryDirectory(prefix="xrefgen-observability-") as output_dir:
         raise AssertionError("Orchestrator lifecycle events were not correlated")
     if finished_event.get("duration_ms", -1) < 0:
         raise AssertionError("Orchestrator completion event lacked duration")
+    if finished_event.get("status") != "completed" or finished_event.get("failed_module_count") != 0:
+        raise AssertionError("Successful orchestrator run reported a partial outcome")
     for artifact in ("xrefs.txt", "details.txt", "xrefs.json", "xrefs.csv"):
         if not os.path.exists(os.path.join(output_dir, artifact)):
             raise AssertionError(f"Orchestrator did not write {artifact}")
     if not any(event.get("event_name") == "results.artifact_written" for event in orchestrator_events):
         raise AssertionError("Artifact output events were not emitted")
+
+    class FailingAnalyzer:
+        enabled = True
+
+        def get_name(self):
+            return "ObservabilityFailureFixture"
+
+        def analyze(self):
+            raise RuntimeError("token=partial-secret")
+
+    app.manager.modules.append(FailingAnalyzer())
+    partial_capture = io.StringIO()
+    partial_handler = logging.StreamHandler(partial_capture)
+    partial_handler.setFormatter(observability._logger.handlers[0].formatter)
+    observability._logger.addHandler(partial_handler)
+    try:
+        app.run(modules=["ObservabilityFailureFixture"], incremental=False)
+    finally:
+        observability._logger.removeHandler(partial_handler)
+        partial_handler.close()
+    partial_events = [json.loads(line) for line in partial_capture.getvalue().splitlines()]
+    partial_finished = next(
+        event for event in partial_events
+        if event.get("event_name") == "analysis.finished"
+    )
+    if partial_finished.get("status") != "partial" or partial_finished.get("failed_module_count") != 1:
+        raise AssertionError("Failed module did not produce a partial analysis outcome")
+    if "partial-secret" in partial_capture.getvalue():
+        raise AssertionError("Failure fixture secret appeared in an analysis event")
+
     with open(general["log_file"], encoding="utf-8") as log_file:
         file_events = [json.loads(line) for line in log_file]
     if not any(

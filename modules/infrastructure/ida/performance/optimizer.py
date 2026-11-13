@@ -56,6 +56,7 @@ class PerformanceOptimizer:
         self._slow_functions = set()
         self._pending_function_hashes = None
         self.last_run_success = True
+        self.failed_modules: List[str] = []
         self._active_analyzer = None
 
         # Load existing cache
@@ -334,6 +335,7 @@ class PerformanceOptimizer:
             modified_functions = self.get_modified_functions()
         modified_functions = modified_functions or set()
         self.last_run_success = True
+        self.failed_modules = []
 
         for analyzer in analyzers:
             if not getattr(analyzer, "enabled", True):
@@ -405,6 +407,7 @@ class PerformanceOptimizer:
                 )
             except (TypeError, ValueError, AttributeError, RuntimeError) as e:
                 self.last_run_success = False
+                self.failed_modules.append(name)
                 exception(
                     "Analysis module failed", event_name="module.failed",
                     module=name, status="failed",
