@@ -9,7 +9,7 @@ from dataclasses import asdict, is_dataclass
 import ida_kernwin
 import ida_nalt
 import idc
-from modules.presentation.logger import info
+from modules.presentation.logger import info, warn
 from modules import __version__
 
 
@@ -101,6 +101,7 @@ class XrefGenPresenter:
         try:
             ida_kernwin.info("%s", str(msg))
         except (TypeError, ValueError, AttributeError, RuntimeError):
+            warn("Unable to show analysis statistics in IDA UI")
             print(msg)
 
     def save_results(
@@ -140,7 +141,7 @@ class XrefGenPresenter:
                 details_name = output_file + '_details.txt'
         details_path = self._resolve_output_path(details_name, idb_path, base_dir, output_name_mode)
 
-        print(f"\n[XrefGen] Saving {len(results)} cross-references to {output_path}")
+        info(f"Saving {len(results)} cross-references to {output_path}")
         include_taint = bool(self.config.get("general.include_taint_kind_in_txt", False))
         txt_format = self.config.get("general.txt_format", "xrefer")
         include_evidence = bool(self.config.get("general.txt_include_evidence", False))

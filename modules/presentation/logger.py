@@ -55,6 +55,8 @@ def configure(log_file: Optional[str], level: str = "info"):
 def _emit(level: str, msg: str):
     # Flatten control characters so untrusted text cannot forge additional records.
     safe = re.sub(r"[\x00-\x1f\x7f]", " ", str(msg))
+    safe = re.sub(r"(?i)(password|passwd|token|api[_-]?key|authorization|cookie)(\s*[=:]\s*)([^\s,;]+)", r"\1\2[REDACTED]", safe)
+    safe = re.sub(r"(?i)bearer\s+[A-Za-z0-9._~+/=-]+", "Bearer [REDACTED]", safe)
     _logger.log(_LEVELS[level], safe)
 
 

@@ -25,6 +25,7 @@ from modules.domain.analyzer import XrefAnalyzer
 from modules.domain.results import AnalysisResult, deserialize_result, serialize_result
 from modules.infrastructure.ida.base import IDAXrefAnalyzer
 from modules.infrastructure.ida.utils.function_cache import FunctionBoundsCache
+from modules.presentation.logger import info, warn, error
 
 
 class PerformanceOptimizer:
@@ -137,13 +138,11 @@ class PerformanceOptimizer:
                         self.analysis_cache = {
                             int(k): v for k, v in raw_analysis.items()
                         }
-                        print(
-                            f"[XrefGen] Loaded JSON cache with {len(self.function_cache)} functions"
-                        )
+                        info(f"Loaded JSON cache with {len(self.function_cache)} functions")
                     else:
-                        print("[XrefGen] Cache version/config mismatch, starting fresh")
+                        warn("Cache version/config mismatch; starting fresh")
             except (json.JSONDecodeError, KeyError, ValueError, OSError) as e:
-                print(f"[XrefGen] Cache load error: {e}")
+                warn(f"Cache load failed; starting fresh: {e}")
                 pass
 
     def save_cache(self):
@@ -174,11 +173,9 @@ class PerformanceOptimizer:
                 os.fsync(f.fileno())
             os.replace(temporary_file, cache_file)
 
-            print(
-                f"[XrefGen] Saved JSON cache with {len(self.function_cache)} functions"
-            )
+            info(f"Saved JSON cache with {len(self.function_cache)} functions")
         except (IOError, OSError, TypeError, ValueError) as e:
-            print(f"[XrefGen] Error saving cache: {e}")
+            error(f"Cache save failed: {e}")
             try:
                 if temporary_file and os.path.exists(temporary_file):
                     os.remove(temporary_file)
@@ -218,7 +215,7 @@ class PerformanceOptimizer:
         for func_ea in modified:
             self.analysis_cache.pop(func_ea, None)
 
-        print(f"[XrefGen] Found {len(modified)} modified functions for analysis")
+        info(f"Incremental analysis found {len(modified)} modified functions")
         return modified
 
     def commit_cache(self) -> None:
@@ -371,10 +368,10 @@ class PerformanceOptimizer:
                     "functions": len(target_funcs),
                     "per_function": func_profile,
                 }
-                print(f"[XrefGen] {name} completed: {len(module_results)} results")
+                info(f"Module completed: {name}, results={len(module_results)}")
             except (TypeError, ValueError, AttributeError, RuntimeError) as e:
                 self.last_run_success = False
-                print(f"[XrefGen] Error in {name}: {e}")
+                error(f"Module failed: {name}: {e}")
                 results[name] = []
                 profile[name] = {"duration_sec": 0.0, "error": str(e)}
 
@@ -474,7 +471,7 @@ class PerformanceOptimizer:
             if not self.analysis_cache[func_ea]:
                 del self.analysis_cache[func_ea]
 
-        print("[XrefGen] Memory optimization completed")
+        info("Memory optimization completed")
 
     def get_statistics(self) -> Dict[str, Any]:
         """Get performance statistics"""
@@ -506,7 +503,7 @@ class PerformanceOptimizer:
                     os.remove(os.path.join(self.cache_dir, file))
                 except OSError:
                     pass
-        print("[XrefGen] Cache cleared")
+        info("Cache cleared")
 
 
 class IncrementalAnalyzer(IDAXrefAnalyzer):
