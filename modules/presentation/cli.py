@@ -208,7 +208,8 @@ class XrefGenPresenter:
             path = idc.get_idb_path()
             if path:
                 return path
-        except (TypeError, ValueError, AttributeError, RuntimeError):
+        except (TypeError, ValueError, AttributeError, RuntimeError) as exc:
+            warn(f"Could not retrieve IDB path; using binary path: {exc}")
             pass
         return fallback_binary_path
 

@@ -448,8 +448,8 @@ class IDA91Analyzer(IDAXrefAnalyzer):
             elif hasattr(ida_lumina, "refresh_metadata"):
                 ida_lumina.refresh_metadata()
             # Metadata is useful to IDA but is not an xref candidate.
-        except (TypeError, ValueError, AttributeError, RuntimeError):
+        except (TypeError, ValueError, AttributeError, RuntimeError) as exc:
             # Best-effort; do not fail the analysis if Lumina unreachable
-            pass
+            warn(f"Lumina metadata refresh failed: {exc}")
 
         return results

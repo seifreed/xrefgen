@@ -34,7 +34,7 @@ from modules.application.config import Config
 from modules.infrastructure.ida.performance.optimizer import PerformanceOptimizer
 from modules.presentation.cli import XrefGenPresenter
 from modules.presentation import logger
-from modules.presentation.logger import info as _info, warn as _warn
+from modules.presentation.logger import info as _info, warn as _warn, error as _error
 from modules.domain.results import RESULT_TYPES, ResultStore, is_control_flow_mnemonic
 from modules import __version__
 
@@ -218,8 +218,8 @@ class XrefGen:
                 full = os.path.join(base_dir, slow_path)
                 with open(full, "w", encoding="utf-8") as f_slow:
                     json.dump(profile, f_slow, indent=2)
-        except (IOError, OSError, KeyError, TypeError):
-            pass
+        except (IOError, OSError, KeyError, TypeError) as exc:
+            _error(f"Slow-function report could not be written: {exc}")
 
         # Save cache if enabled
         if self.config.get("modules.performance.use_cache"):
@@ -363,10 +363,7 @@ def main():
     # Create XrefGen instance
     xrefgen = XrefGen(config_file=args.config)
     # Keep optimizer diagnostics on the same configured logging pipeline.
-    try:
-        xrefgen.optimizer.logger = logger.debug
-    except (AttributeError, TypeError):
-        pass
+    xrefgen.optimizer.logger = logger.debug
 
     # Clear cache if requested
     if args.clear_cache:
