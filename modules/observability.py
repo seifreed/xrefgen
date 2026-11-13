@@ -97,9 +97,16 @@ class _SafeRotatingFileHandler(RotatingFileHandler):
     """A broken optional sink must not interrupt IDA analysis or leak handler errors."""
 
     def _open(self):
-        stream = super()._open()
-        if os.name == "posix":
-            os.chmod(self.baseFilename, 0o600)
+        if os.name != "posix":
+            return super()._open()
+        stream = open(
+            self.baseFilename,
+            self.mode,
+            encoding=self.encoding,
+            errors=self.errors,
+            opener=lambda path, flags: os.open(path, flags, 0o600),
+        )
+        os.chmod(self.baseFilename, 0o600)
         return stream
 
     def handleError(self, record):

@@ -348,11 +348,20 @@ def test_file_sink_rotates_at_configured_size(tmp_path):
     assert (tmp_path / "events.jsonl.1").exists()
 
 
-def test_file_sink_is_owner_only_on_posix(tmp_path):
+def test_file_sink_is_owner_only_on_posix(tmp_path, monkeypatch):
     if os.name != "posix":
         return
     path = tmp_path / "private.jsonl"
+    requested_modes = []
+    original_open = os.open
+
+    def secure_open(file, flags, mode=0o777):
+        requested_modes.append(mode)
+        return original_open(file, flags, mode)
+
+    monkeypatch.setattr("modules.observability.os.open", secure_open)
     logger.configure(str(path), "info")
     logger.info("private local event")
+    assert requested_modes == [0o600]
     assert stat.S_IMODE(path.stat().st_mode) == 0o600
     assert path.stat().st_size < 5_000_000
