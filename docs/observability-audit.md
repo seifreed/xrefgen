@@ -22,21 +22,21 @@ The baseline is the repository state before commit `00a57e0` (logger source in i
 
 ## Current in-progress score
 
-Evidence through commits `21ad6a1` and `d72d6ca` (building on the earlier commits listed in git history): standard-library logging, JSON UTC records and structured fields, TRACE–FATAL levels, bounded rotating file output, credential/control-character/private-key redaction, observable configuration fallback, concurrent and sink-failure tests, filtered-event fast path, sanitized exception type/stack, scoped analysis correlation, plugin shutdown and launch failure logging, and lifecycle/module/cache/analyzer instrumentation. The latest maintained selection passed 38 tests. Many locally present test files are untracked and should not be treated as repository-owned baseline tests.
+Evidence through commits `ace5ab2`, `b0c753a`, and `1b7f868` (building on the earlier commits listed in git history): standard-library logging moved below presentation, JSON UTC records and structured fields, TRACE–FATAL levels, bounded rotating file output, credential/control-character/private-key redaction, observable configuration fallback, concurrent and sink-failure tests, filtered-event fast path, sanitized exception type/stack, scoped analysis correlation, plugin shutdown and launch failure logging, structured artifact events with path minimization, and lifecycle/module/cache/analyzer instrumentation. Maintained selections passed 38 and 26 tests respectively. Many locally present test files are untracked and should not be treated as repository-owned baseline tests.
 
 | Dimension | Current | Remaining evidence/gap |
 |---|---:|---|
 | Architecture and decoupling | 7 | Shared logger moved to neutral `modules.observability`, avoiding application/infrastructure imports from presentation; validate lifecycle inside IDA and component attribution. |
 | Functional coverage | 7 | Application and optimized module executions emit lifecycle events; remaining best-effort catches and IDA run need review. |
-| Event quality | 7 | Analysis and module lifecycle events carry stable names, outcome, duration, and result counts; other events remain free-form. |
+| Event quality | 8 | Analysis, module and artifact events carry stable names, outcomes, durations/counts where useful; other events remain free-form. |
 | Structure and consistency | 8 | JSON UTC schema with optional structured fields; component is currently always `xrefgen`. |
 | Context and correlation | 5 | A per-run correlation ID and operation are scoped with `ContextVar`; no distributed tracing is justified for the current single-process design. |
-| Security and privacy | 6 | Common credentials, bearer values, private keys and controls are redacted; broader sensitive-data review remains. |
+| Security and privacy | 7 | Common credentials, bearer values, private keys and controls are redacted; file events use basenames, and broader sensitive-data review remains. |
 | Performance and resilience | 8 | 20,000-event in-memory benchmark: JSON INFO ~48,987 events/s, filtered DEBUG ~3,901,328 calls/s; bounded rotation and non-fatal file sink. IDA-thread impact remains unmeasured. |
 | Configuration and portability | 6 | Invalid level/file sink fall back with a structured warning; no environment selector or retention configuration beyond fixed bounds. |
 | Error handling | 7 | Analysis boundary logs uncaught exceptions with sanitized stack and re-raises; remaining best-effort catches require review. |
 | Testing and verification | 7 | 38 maintained tests across logger, module events, config, registry, cache, results, corpus, taint, and wasm pass; global suite includes conflicting untracked tests, and IDA runtime tests are not run. |
-| **Provisional mean** | **6.8** | **68 / 10 dimensions; not final or release-ready** |
+| **Provisional mean** | **7.0** | **70 / 10 dimensions; not final or release-ready** |
 
 Do not use the provisional score as a completion claim. A final score requires resolving the remaining gaps, running the maintained test suite, and verifying the plugin lifecycle in IDA or documenting a genuine environment limitation.
 
