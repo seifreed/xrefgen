@@ -20,6 +20,7 @@ from modules.infrastructure.ida.performance.optimizer import IncrementalAnalyzer
 from modules.infrastructure.ida.utils.insn import scan_back_for_reg_source
 from modules.infrastructure.ida.architecture.wasm import WasmModule
 from modules.domain.results import AnalysisResult
+from modules.presentation.logger import warn
 
 class CrossArchAnalyzer(IncrementalAnalyzer):
     """Architecture-specific xref analysis"""
@@ -79,7 +80,7 @@ class CrossArchAnalyzer(IncrementalAnalyzer):
     def analyze(self) -> List[AnalysisResult]:
         """Perform architecture-specific analysis"""
         if self.arch not in self.supported_archs:
-            print(f"[XrefGen] Architecture {self.arch} not in supported list")
+            warn(f"Architecture {self.arch} is not supported")
             return []
         return super().analyze()
 

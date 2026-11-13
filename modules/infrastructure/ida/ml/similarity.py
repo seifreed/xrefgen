@@ -5,6 +5,7 @@ from modules.infrastructure.ida.base import IDAXrefAnalyzer
 from modules.domain.results import AnalysisResult
 import idautils
 import idc
+from modules.presentation.logger import error
 
 
 class SimilarityAnalyzer(IDAXrefAnalyzer):
@@ -85,5 +86,5 @@ class SimilarityAnalyzer(IDAXrefAnalyzer):
 
             return results
         except (TypeError, ValueError, AttributeError, RuntimeError) as e:
-            print(f"[SimilarityAnalyzer] Analysis error: {e}")
+            error(f"Similarity analysis failed: {e}")
             return []

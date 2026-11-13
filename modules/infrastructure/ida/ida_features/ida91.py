@@ -11,6 +11,7 @@ import idc
 import idautils
 import ida_ida
 import ida_funcs
+from modules.presentation.logger import info, warn
 
 try:
     import ida_typeinf
@@ -41,7 +42,7 @@ class IDA91Analyzer(IDAXrefAnalyzer):
     def analyze(self) -> List[AnalysisResult]:
         """Perform IDA 9.1 specific analysis"""
         if not self.is_compatible:
-            print(f"[XrefGen] IDA 9.1+ required (current: {self.ida_version})")
+            warn(f"IDA 9.1+ required; current version is {self.ida_version}")
             return []
 
         results = []
@@ -402,7 +403,7 @@ class IDA91Analyzer(IDAXrefAnalyzer):
                     continue
 
         except ImportError:
-            print("[XrefGen] Hex-Rays decompiler not available")
+            info("Hex-Rays decompiler unavailable; skipping decompiler analysis")
 
         return results
 
@@ -435,7 +436,7 @@ class IDA91Analyzer(IDAXrefAnalyzer):
         try:
             import ida_lumina
         except ImportError:
-            print("[XrefGen] Lumina module not available; skipping")
+            info("Lumina module unavailable; skipping Lumina analysis")
             return results
 
         # Attempt to fetch metadata; keep it non-destructive and optional

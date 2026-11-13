@@ -35,6 +35,7 @@ from modules.infrastructure.ida.analysis.components import (
 from modules.infrastructure.ida.analysis.taint_rules import TaintRules
 from modules.infrastructure.ida.analysis.sink_policy import SinkPolicy
 from modules.infrastructure.ida.analysis.interprocedural import InterproceduralSummaries
+from modules.presentation.logger import warn
 from modules.infrastructure.ida.analysis.call_policies import (
     CallInfo,
     TaintSourcePolicy,
@@ -560,23 +561,23 @@ class DataFlowAnalyzer(IncrementalAnalyzer):
             # Source/sink logic for this function + its callers
             results.extend(self._analyze_taint_for_function(func_ea))
         except (TypeError, ValueError, AttributeError, RuntimeError) as e:
-            print(f"[DataFlowAnalyzer] Warning in taint analysis: {e}")
+            warn(f"Taint analysis unavailable: {e}")
         try:
             if not self._slow:
                 results.extend(self._analyze_return_values_for_function(func_ea, func))
         except (TypeError, ValueError, AttributeError, RuntimeError) as e:
-            print(f"[DataFlowAnalyzer] Warning in return value analysis: {e}")
+            warn(f"Return value analysis unavailable: {e}")
         try:
             if not self._slow:
                 results.extend(self._hexrays_taint_flow(func_ea))
         except (TypeError, ValueError, AttributeError, RuntimeError) as e:
-            print(f"[DataFlowAnalyzer] Warning in Hex-Rays taint analysis: {e}")
+            warn(f"Hex-Rays taint analysis unavailable: {e}")
         try:
             if not self._slow:
                 pointer_chains = self._find_pointer_chains(func, deadline)
                 results.extend(self._emit_pointer_chain_results(pointer_chains))
         except (TypeError, ValueError, AttributeError, RuntimeError) as e:
-            print(f"[DataFlowAnalyzer] Warning in pointer chain analysis: {e}")
+            warn(f"Pointer chain analysis unavailable: {e}")
         return results
 
     def _analyze_taint_for_function(

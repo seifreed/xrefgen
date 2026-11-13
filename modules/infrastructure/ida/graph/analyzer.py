@@ -8,6 +8,7 @@ import idaapi
 import idautils
 import idc
 import ida_funcs
+from modules.presentation.logger import info
 try:
     import ida_hexrays
 except (TypeError, ValueError, AttributeError, RuntimeError):
@@ -235,7 +236,7 @@ class GraphAnalyzer(IncrementalAnalyzer):
     
     def _build_call_graph(self):
         """Build complete call graph of the binary"""
-        print("[XrefGen] Building call graph...")
+        info("Building call graph")
 
         for func_ea, func in self._iter_functions():
             if self._is_trivial_function(func):
@@ -589,7 +590,7 @@ class GraphAnalyzer(IncrementalAnalyzer):
         results = []
         entry_points = self._entry_finder.find_entry_points()
         
-        print(f"[XrefGen] Analyzing call chains from {len(entry_points)} entry points...")
+        info(f"Analyzing call chains from {len(entry_points)} entry points")
         
         for entry in entry_points:
             chains = self._build_chains_from_entry(entry)
@@ -670,7 +671,7 @@ class GraphAnalyzer(IncrementalAnalyzer):
         """Generate function clusters based on xref patterns"""
         results = []
         
-        print("[XrefGen] Generating function clusters...")
+        info("Generating function clusters")
         
         # Use connected components algorithm
         clusters = self._find_connected_components()
@@ -764,7 +765,7 @@ class GraphAnalyzer(IncrementalAnalyzer):
         return cohesion * size_factor
     
     def _analyze_complexity(self) -> List[AnalysisResult]:
-        print("[XrefGen] Analyzing function complexity...")
+        info("Analyzing function complexity")
         return self._complexity.analyze()
 
     def confidence(self, key: str, default: float = None) -> float:
