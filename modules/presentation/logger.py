@@ -84,3 +84,18 @@ def critical(msg: str): _emit("critical", msg)
 def exception(msg: str):
     """Record the active exception with its sanitized type and stack."""
     _logger.error(_sanitize(msg), exc_info=True)
+
+
+def shutdown():
+    """Flush and close configured sinks during plugin termination."""
+    for handler in _logger.handlers[:]:
+        try:
+            handler.flush()
+        except OSError:
+            pass
+        finally:
+            _logger.removeHandler(handler)
+            try:
+                handler.close()
+            except OSError:
+                pass

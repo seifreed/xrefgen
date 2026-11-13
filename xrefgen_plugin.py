@@ -33,7 +33,11 @@ class XrefGenPlugin(idaapi.plugin_t):
             ida_kernwin.warning("XrefGen failed: %s" % exc)
 
     def term(self):
-        pass
+        try:
+            from modules.presentation.logger import shutdown
+            shutdown()
+        except ImportError:
+            pass
 
 
 def PLUGIN_ENTRY():

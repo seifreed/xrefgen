@@ -64,3 +64,15 @@ def test_exception_type_and_trace_are_recorded_without_secret(capsys):
     assert event["error_type"] == "RuntimeError"
     assert "stack_trace" in event
     assert "private-value" not in event["stack_trace"]
+
+
+def test_shutdown_closes_handlers_and_allows_reconfiguration(capsys):
+    logger.configure(None, "info")
+    logger.info("before shutdown")
+    logger.shutdown()
+    assert not logger._logger.handlers
+    logger.configure(None, "info")
+    logger.info("after shutdown")
+    assert [json.loads(line)["message"] for line in capsys.readouterr().out.splitlines()] == [
+        "before shutdown", "after shutdown"
+    ]
