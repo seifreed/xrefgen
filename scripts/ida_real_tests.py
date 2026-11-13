@@ -5,6 +5,10 @@ import json
 import os
 import copy
 import sys
+import io
+import logging
+import time
+from uuid import uuid4
 import idautils
 import ida_nalt
 import idc
@@ -21,15 +25,61 @@ from modules.domain.results import (
     is_control_flow_mnemonic,
 )
 from modules.infrastructure.ida.performance.optimizer import PerformanceOptimizer
+from modules import observability
 
+observability.configure(None)
 cfg = Config().config
+observability.configure(
+    cfg.get("general", {}).get("log_file"),
+    cfg.get("general", {}).get("log_level", "info"),
+)
 modules = build_modules(cfg)
 optimizer = PerformanceOptimizer(cfg.get("modules", {}).get("performance", {}))
 
 print("[IDA Real Tests] Binary:", ida_nalt.get_input_file_path())
 
-# Run a minimal analysis pass and assert basic invariants
-results_by_module = optimizer.analyze_sequential(modules, modified_only=False)
+# Run real module analysis and assert that JSON events share one correlation ID.
+capture = io.StringIO()
+capture_handler = logging.StreamHandler(capture)
+capture_handler.setFormatter(observability._logger.handlers[0].formatter)
+observability._logger.addHandler(capture_handler)
+correlation_id = uuid4().hex
+started = time.perf_counter()
+try:
+    with observability.operation_context("ida.integration_validation", correlation_id):
+        observability.info(
+            "IDA integration analysis started",
+            event_name="ida.validation.started",
+            status="started",
+        )
+        results_by_module = optimizer.analyze_sequential(modules, modified_only=False)
+        observability.info(
+            "IDA integration analysis finished",
+            event_name="analysis.finished",
+            status="completed",
+            duration_ms=round((time.perf_counter() - started) * 1000, 3),
+            module_count=len(results_by_module),
+        )
+except Exception:
+    observability.exception(
+        "IDA integration analysis failed",
+        event_name="ida.validation.failed",
+        status="failed",
+        duration_ms=round((time.perf_counter() - started) * 1000, 3),
+    )
+    raise
+finally:
+    observability._logger.removeHandler(capture_handler)
+    capture_handler.close()
+
+captured_events = [json.loads(line) for line in capture.getvalue().splitlines()]
+if not any(
+    event.get("event_name") == "analysis.finished"
+    and event.get("correlation_id") == correlation_id
+    and event.get("operation") == "ida.integration_validation"
+    for event in captured_events
+):
+    raise AssertionError("Analysis completion event lacked the expected correlation context")
 
 # Basic checks: each module returns a list
 for name, res in results_by_module.items():
