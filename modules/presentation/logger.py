@@ -55,24 +55,27 @@ class _SafeRotatingFileHandler(RotatingFileHandler):
 def configure(log_file: Optional[str], level: str = "info"):
     """Configure stdout and optional size-bounded UTF-8 JSON file output."""
     global _log_file, _level
-    selected = _LEVELS.get(str(level).lower())
-    if selected is None:
-        raise ValueError(f"Unsupported log level: {level}")
-    for handler in _logger.handlers[:]:
-        _logger.removeHandler(handler)
-        handler.close()
+    level_name = str(level).lower()
+    selected = _LEVELS.get(level_name, _LEVELS["info"])
+    shutdown()
     _logger.setLevel(selected)
     _level = selected
     _logger.addHandler(logging.StreamHandler(sys.stdout))
+    warnings = []
+    if level_name not in _LEVELS:
+        warnings.append(f"Unsupported log level {level_name!r}; using info")
     if log_file:
         try:
             handler = _SafeRotatingFileHandler(log_file, maxBytes=5_000_000, backupCount=3, encoding="utf-8")
             _logger.addHandler(handler)
-        except OSError:
-            pass
+        except OSError as exc:
+            warnings.append(f"File logging unavailable ({type(exc).__name__}); using console")
+            log_file = None
     for handler in _logger.handlers:
         handler.setFormatter(_JsonFormatter())
     _log_file = log_file
+    for message in warnings:
+        warn(message, event_name="logging.configuration_warning")
 
 
 def _emit(level_name: str, msg: str, exc_info=False, **fields):
@@ -108,13 +111,13 @@ def shutdown():
     for handler in _logger.handlers[:]:
         try:
             handler.flush()
-        except OSError:
+        except (OSError, ValueError):
             pass
         finally:
             _logger.removeHandler(handler)
             try:
                 handler.close()
-            except OSError:
+            except (OSError, ValueError):
                 pass
 
 

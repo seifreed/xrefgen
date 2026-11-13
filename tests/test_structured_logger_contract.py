@@ -29,7 +29,8 @@ def test_concurrent_records_remain_independent(capsys):
 def test_unavailable_file_destination_falls_back_to_console(capsys, tmp_path, monkeypatch):
     logger.configure(str(tmp_path / "missing" / "events.log"), "info")
     logger.info("console fallback")
-    assert json.loads(capsys.readouterr().out)["message"] == "console fallback"
+    events = [json.loads(line) for line in capsys.readouterr().out.splitlines()]
+    assert events[-1]["message"] == "console fallback"
 
 
 def test_file_write_failure_does_not_raise(capsys, tmp_path):
@@ -118,3 +119,19 @@ def test_reserved_fields_are_rejected():
         pass
     else:
         raise AssertionError("reserved field override accepted")
+
+
+def test_invalid_level_falls_back_with_structured_warning(capsys):
+    logger.configure(None, "verbose-ish")
+    event = json.loads(capsys.readouterr().out)
+    assert event["level"] == "warn"
+    assert event["event_name"] == "logging.configuration_warning"
+    assert logger._level == logger._LEVELS["info"]
+
+
+def test_invalid_file_destination_warns_and_keeps_console(capsys, tmp_path):
+    logger.configure(str(tmp_path / "missing" / "events.log"), "info")
+    events = [json.loads(line) for line in capsys.readouterr().out.splitlines()]
+    assert events[0]["event_name"] == "logging.configuration_warning"
+    assert "File logging unavailable" in events[0]["message"]
+    assert logger._log_file is None
