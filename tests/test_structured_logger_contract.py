@@ -76,3 +76,26 @@ def test_shutdown_closes_handlers_and_allows_reconfiguration(capsys):
     assert [json.loads(line)["message"] for line in capsys.readouterr().out.splitlines()] == [
         "before shutdown", "after shutdown"
     ]
+
+
+def test_operation_context_is_scoped_and_correlated(capsys):
+    logger.configure(None, "info")
+    logger.info("outside")
+    with logger.operation_context("analysis", "run-123"):
+        logger.info("inside")
+    events = [json.loads(line) for line in capsys.readouterr().out.splitlines()]
+    assert "correlation_id" not in events[0]
+    assert events[1]["operation"] == "analysis"
+    assert events[1]["correlation_id"] == "run-123"
+
+
+def test_operation_context_does_not_leak_between_threads(capsys):
+    logger.configure(None, "info")
+    with logger.operation_context("main", "parent"):
+        with ThreadPoolExecutor(max_workers=1) as pool:
+            pool.submit(logger.info, "child").result()
+        logger.info("parent")
+    events = [json.loads(line) for line in capsys.readouterr().out.splitlines()]
+    by_message = {event["message"]: event for event in events}
+    assert "correlation_id" not in by_message["child"]
+    assert by_message["parent"]["correlation_id"] == "parent"

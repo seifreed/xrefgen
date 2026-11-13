@@ -30,12 +30,12 @@ Evidence through commit `0f5b3cb` plus follow-up commits `e2594d7` and `b9c2df1`
 | Functional coverage | 6 | Most diagnostics migrated; audit all error paths and run representative IDA analyses. |
 | Event quality | 5 | Lifecycle, counts and durations exist; some events remain free-form and not consistently named. |
 | Structure and consistency | 7 | JSON UTC schema exists; component is currently always `xrefgen`, and operation/status fields are not normalized. |
-| Context and correlation | 1 | No per-analysis correlation context. No distributed tracing is justified for the current single-process design. |
+| Context and correlation | 5 | A per-run correlation ID and operation are scoped with `ContextVar`; no distributed tracing is justified for the current single-process design. |
 | Security and privacy | 6 | Common credentials, bearer values, private keys and controls are redacted; broader sensitive-data review remains. |
 | Performance and resilience | 7 | Standard handler locking and bounded rotation; no benchmark or IDA-thread impact measurement. |
 | Configuration and portability | 5 | Level and file sink supported; no environment selector or retention configuration beyond fixed bounds. |
 | Error handling | 6 | Several swallowed operational failures now warn/error; remaining best-effort catches require review. |
 | Testing and verification | 5 | Logger contracts and tracked subset pass; global suite is polluted by untracked tests, and IDA runtime tests are not run. |
-| **Provisional mean** | **5.4** | **54 / 10 dimensions; not final or release-ready** |
+| **Provisional mean** | **5.8** | **58 / 10 dimensions; not final or release-ready** |
 
 Do not use the provisional score as a completion claim. A final score requires resolving the remaining gaps, running the maintained test suite, and verifying the plugin lifecycle in IDA or documenting a genuine environment limitation.

@@ -11,6 +11,7 @@ import sys
 import os
 import time
 import argparse
+from uuid import uuid4
 from typing import List
 
 # Add modules to path
@@ -84,6 +85,11 @@ class XrefGen:
         _info(f"Registered {len(self.manager.modules)} modules")
 
     def run(self, modules: List[str] = None, incremental: bool = None):
+        """Run one correlated analysis operation."""
+        with logger.operation_context("analysis", uuid4().hex):
+            return self._run(modules, incremental)
+
+    def _run(self, modules: List[str] = None, incremental: bool = None):
         """Run the cross-reference generation"""
         self.start_time = time.time()
         try:
@@ -91,7 +97,7 @@ class XrefGen:
         except (TypeError, ValueError, AttributeError):
             bin_path = None
         _info("Analysis started")
-        _info(f"Binary: {ida_nalt.get_input_file_path()}")
+        _info(f"Binary: {os.path.basename(ida_nalt.get_input_file_path())}")
         _info(f"Architecture: {self._get_arch_name()}")
 
         # Wait for auto-analysis to complete

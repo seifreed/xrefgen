@@ -4,6 +4,8 @@ import json
 import logging
 import re
 import sys
+from contextlib import contextmanager
+from contextvars import ContextVar
 from datetime import datetime, timezone
 from logging.handlers import RotatingFileHandler
 from typing import Optional
@@ -17,6 +19,7 @@ _logger.propagate = False
 _logger.setLevel(logging.INFO)
 _log_file: Optional[str] = None
 _level = _LEVELS["info"]
+_event_context = ContextVar("xrefgen_log_context", default=None)
 
 
 def _sanitize(value):
@@ -36,6 +39,7 @@ class _JsonFormatter(logging.Formatter):
         if record.exc_info:
             event["error_type"] = record.exc_info[0].__name__
             event["stack_trace"] = _sanitize(self.formatException(record.exc_info))
+        event.update(_event_context.get() or {})
         return json.dumps(event, ensure_ascii=True)
 
 
@@ -99,3 +103,13 @@ def shutdown():
                 handler.close()
             except OSError:
                 pass
+
+
+@contextmanager
+def operation_context(operation: str, correlation_id: str):
+    """Attach real operation context to events without mutating process-global state."""
+    token = _event_context.set({"operation": _sanitize(operation), "correlation_id": _sanitize(correlation_id)})
+    try:
+        yield
+    finally:
+        _event_context.reset(token)
