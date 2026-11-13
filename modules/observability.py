@@ -5,6 +5,7 @@ import logging
 import os
 import re
 import sys
+import traceback
 from math import isfinite
 from contextlib import contextmanager
 from contextvars import ContextVar
@@ -17,6 +18,8 @@ _LEVELS = {"trace": 5, "debug": logging.DEBUG, "info": logging.INFO,
            "fatal": logging.CRITICAL, "critical": logging.CRITICAL}
 _MAX_TEXT_CHARS = 16_384
 _MAX_FIELDS = 64
+_DEFAULT_MAX_BYTES = 5_000_000
+_DEFAULT_BACKUP_COUNT = 3
 _SECRET_ASSIGNMENT = re.compile(
     r"(?i)([\"']?(?:password|passwd|secret|token|api[_-]?key|access[_-]?key|private[_-]?key|authorization|cookie)[\"']?\s*[=:]\s*)"
     r'("[^\"]*"|\'[^\']*\'|[^\s,;]+)'
@@ -49,7 +52,21 @@ class _JsonFormatter(logging.Formatter):
         }
         if record.exc_info:
             event["error_type"] = record.exc_info[0].__name__
-            event["stack_trace"] = _sanitize(self.formatException(record.exc_info))
+            exception = record.exc_info[1]
+            seen = set()
+            chain = []
+            frames = []
+            while exception is not None and id(exception) not in seen:
+                seen.add(id(exception))
+                chain.append(type(exception).__name__)
+                if exception.__traceback__:
+                    frames.extend(traceback.extract_tb(exception.__traceback__))
+                exception = exception.__cause__ or exception.__context__
+            event["error_chain"] = " -> ".join(chain)
+            event["stack_trace"] = _sanitize("\n".join(
+                f'File "{os.path.basename(frame.filename)}", line {frame.lineno}, in {frame.name}'
+                for frame in frames[-64:]
+            ))
         event.update(_event_context.get() or {})
         event.update(getattr(record, "xrefgen_fields", {}))
         return event
@@ -81,7 +98,13 @@ class _SafeRotatingFileHandler(RotatingFileHandler):
         return
 
 
-def configure(log_file: Optional[str], level: str = "info", log_format: str = "json"):
+def configure(
+    log_file: Optional[str],
+    level: str = "info",
+    log_format: str = "json",
+    max_bytes: int = _DEFAULT_MAX_BYTES,
+    backup_count: int = _DEFAULT_BACKUP_COUNT,
+):
     """Configure stdout and optional size-bounded UTF-8 file output."""
     global _log_file, _level
     level_name = str(level).lower()
@@ -97,9 +120,20 @@ def configure(log_file: Optional[str], level: str = "info", log_format: str = "j
     if format_name not in {"json", "text"}:
         warnings.append(f"Unsupported log format {format_name!r}; using json")
         format_name = "json"
+    if type(max_bytes) is not int or not 2_000_000 <= max_bytes <= 50_000_000:
+        warnings.append("Unsupported log file size; using default")
+        max_bytes = _DEFAULT_MAX_BYTES
+    if type(backup_count) is not int or not 0 <= backup_count <= 5:
+        warnings.append("Unsupported log backup count; using default")
+        backup_count = _DEFAULT_BACKUP_COUNT
     if log_file:
         try:
-            handler = _SafeRotatingFileHandler(log_file, maxBytes=5_000_000, backupCount=3, encoding="utf-8")
+            handler = _SafeRotatingFileHandler(
+                log_file,
+                maxBytes=max_bytes,
+                backupCount=backup_count,
+                encoding="utf-8",
+            )
             _logger.addHandler(handler)
         except OSError as exc:
             warnings.append(f"File logging unavailable ({type(exc).__name__}); using console")

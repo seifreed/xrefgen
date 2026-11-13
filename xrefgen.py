@@ -52,6 +52,8 @@ class XrefGen:
             self.config.get("general.log_file"),
             self.config.get("general.log_level", "info"),
             self.config.get("general.log_format", "json"),
+            self.config.get("general.log_max_bytes", 5_000_000),
+            self.config.get("general.log_backup_count", 3),
         )
         logger.info(
             "XrefGen initialized",

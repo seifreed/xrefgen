@@ -32,6 +32,8 @@ class Config:
             "log_file": None,
             "log_level": "info",
             "log_format": "json",
+            "log_max_bytes": 5_000_000,
+            "log_backup_count": 3,
         },
         "modules": {
             "data_flow": {
@@ -279,6 +281,8 @@ class Config:
                 "log_file": None,
                 "log_level": None,
                 "log_format": None,
+                "log_max_bytes": None,
+                "log_backup_count": None,
                 "profile_output_file": None,
                 "include_taint_kind": None,
                 "taint_kind_output_file": None,

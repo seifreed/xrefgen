@@ -39,6 +39,13 @@ def test_oversized_messages_and_fields_are_bounded(capsys):
     assert event["message"].endswith("[TRUNCATED]")
 
 
+def test_structured_field_count_is_bounded(capsys):
+    logger.configure(None, "info")
+    logger.info("bounded fields", **{f"field_{index:03}": index for index in range(100)})
+    event = json.loads(capsys.readouterr().out)
+    assert len([key for key in event if key.startswith("field_")]) == logger._MAX_FIELDS
+
+
 def test_concurrent_records_remain_independent(capsys):
     logger.configure(None, "info")
     with ThreadPoolExecutor(max_workers=8) as pool:
@@ -87,6 +94,24 @@ def test_exception_type_and_trace_are_recorded_without_secret(capsys):
     assert event["error_type"] == "RuntimeError"
     assert "stack_trace" in event
     assert "private-value" not in event["stack_trace"]
+
+
+def test_exception_chain_keeps_types_and_frames_without_messages_or_paths(capsys):
+    logger.configure(None, "error")
+    try:
+        try:
+            raise ValueError("unstructured-secret")
+        except ValueError as cause:
+            raise RuntimeError("different-secret") from cause
+    except RuntimeError:
+        logger.exception("operation failed")
+    event = json.loads(capsys.readouterr().out)
+    assert event["error_type"] == "RuntimeError"
+    assert event["error_chain"] == "RuntimeError -> ValueError"
+    assert "unstructured-secret" not in json.dumps(event)
+    assert "different-secret" not in json.dumps(event)
+    assert "/Users/" not in event["stack_trace"]
+    assert "test_exception_chain_keeps_types_and_frames_without_messages_or_paths" in event["stack_trace"]
 
 
 def test_shutdown_closes_handlers_and_allows_reconfiguration(capsys):
@@ -169,12 +194,36 @@ def test_invalid_level_falls_back_with_structured_warning(capsys):
     assert logger._level == logger._LEVELS["info"]
 
 
+def test_trace_and_fatal_levels_are_normalized(capsys):
+    logger.configure(None, "trace")
+    logger.trace("trace event")
+    logger.configure(None, "fatal")
+    logger.critical("fatal event")
+    events = [json.loads(line) for line in capsys.readouterr().out.splitlines()]
+    assert [event["level"] for event in events] == ["trace", "fatal"]
+
+
 def test_invalid_file_destination_warns_and_keeps_console(capsys, tmp_path):
     logger.configure(str(tmp_path / "missing" / "events.log"), "info")
     events = [json.loads(line) for line in capsys.readouterr().out.splitlines()]
     assert events[0]["event_name"] == "logging.configuration_warning"
     assert "File logging unavailable" in events[0]["message"]
     assert logger._log_file is None
+
+
+def test_file_rotation_settings_are_configurable_and_bounded(capsys, tmp_path):
+    path = tmp_path / "events.jsonl"
+    logger.configure(str(path), "info", "json", max_bytes=2_500_000, backup_count=1)
+    file_handler = logger._logger.handlers[1]
+    assert file_handler.maxBytes == 2_500_000
+    assert file_handler.backupCount == 1
+
+    logger.configure(str(path), "info", "json", max_bytes=1, backup_count=99)
+    warnings = [json.loads(line) for line in capsys.readouterr().out.splitlines()]
+    assert len([event for event in warnings if event.get("event_name") == "logging.configuration_warning"]) == 2
+    file_handler = logger._logger.handlers[1]
+    assert file_handler.maxBytes == logger._DEFAULT_MAX_BYTES
+    assert file_handler.backupCount == logger._DEFAULT_BACKUP_COUNT
 
 
 def test_filtered_debug_skips_sanitization(monkeypatch):
