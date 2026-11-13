@@ -1,6 +1,7 @@
 """Application layer: module orchestration (IDA-agnostic)."""
 
 from typing import Any, Dict, List
+import time
 from modules.domain.analyzer import XrefAnalyzer
 from modules.domain.results import AnalysisResult, RESULT_TYPES
 from modules.presentation.logger import info, exception
@@ -32,7 +33,9 @@ class ModuleManager:
             if selected_modules and module.get_name() not in selected_modules:
                 continue
 
-            info(f"Running module: {module.get_name()}")
+            module_name = module.get_name()
+            started = time.perf_counter()
+            info("Analysis module started", event_name="module.started", module=module_name, status="started")
             try:
                 module_results = module.analyze()
                 if any(not isinstance(result, RESULT_TYPES) for result in module_results):
@@ -41,9 +44,18 @@ class ModuleManager:
                     )
                 self.results_by_module[module.get_name()] = module_results
                 self.results.extend(module_results)
-                info(f"Module completed: {module.get_name()}, results={len(module_results)}")
+                info(
+                    "Analysis module completed", event_name="module.finished",
+                    module=module_name, status="completed",
+                    duration_ms=round((time.perf_counter() - started) * 1000, 3),
+                    result_count=len(module_results),
+                )
             except (TypeError, ValueError, AttributeError, RuntimeError) as e:
-                exception(f"Module failed: {module.get_name()}")
+                exception(
+                    "Analysis module failed", event_name="module.failed",
+                    module=module_name, status="failed",
+                    duration_ms=round((time.perf_counter() - started) * 1000, 3),
+                )
                 self.results_by_module[module.get_name()] = []
 
         return self.results

@@ -367,10 +367,18 @@ class PerformanceOptimizer:
                     "functions": len(target_funcs),
                     "per_function": func_profile,
                 }
-                info(f"Module completed: {name}, results={len(module_results)}")
+                info(
+                    "Analysis module completed", event_name="module.finished",
+                    module=name, status="completed", duration_ms=round(elapsed * 1000, 3),
+                    result_count=len(module_results), function_count=len(target_funcs),
+                )
             except (TypeError, ValueError, AttributeError, RuntimeError) as e:
                 self.last_run_success = False
-                exception(f"Module failed: {name}")
+                exception(
+                    "Analysis module failed", event_name="module.failed",
+                    module=name, status="failed",
+                    duration_ms=round(max(0.0, time.time() - start_t) * 1000, 3),
+                )
                 results[name] = []
                 profile[name] = {"duration_sec": 0.0, "error": str(e)}
 
