@@ -11,7 +11,6 @@ import sys
 import os
 import time
 import argparse
-from datetime import datetime
 from typing import List
 
 # Add modules to path
@@ -39,35 +38,12 @@ from modules.presentation.logger import info as _info, warn as _warn
 from modules.domain.results import RESULT_TYPES, ResultStore, is_control_flow_mnemonic
 from modules import __version__
 
-_DEBUG_LOG_PATH = None
-
-
-def _set_debug_log_from_binary(bin_path: str):
-    global _DEBUG_LOG_PATH
-    try:
-        base_dir = os.path.dirname(bin_path) if bin_path else os.getcwd()
-        _DEBUG_LOG_PATH = os.path.join(base_dir, "_xrefgen_debug.log")
-    except (TypeError, OSError):
-        _DEBUG_LOG_PATH = None
-
-
-def _dbg_log(msg: str):
-    try:
-        if _DEBUG_LOG_PATH:
-            ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            with open(_DEBUG_LOG_PATH, "a", encoding="utf-8", errors="ignore") as _f:
-                _f.write(f"[{ts}] {msg}\n")
-    except (IOError, OSError):
-        pass
-
-
 class XrefGen:
     """Main XrefGen orchestrator"""
 
     def __init__(self, config_file: str = None):
         """Initialize XrefGen with configuration"""
-        print(f"XrefGen v{__version__} - Advanced Cross-Reference Generator for IDA Pro")
-        print("Author: Marc Rivero (@seifreed)")
+        _info(f"XrefGen v{__version__} initialized")
 
         # Load configuration
         self.config = Config(config_file)
@@ -100,7 +76,7 @@ class XrefGen:
 
     def _register_modules(self):
         """Register all analysis modules"""
-        print("\n[XrefGen] Registering analysis modules...")
+        _info("Registering analysis modules")
         for module in build_modules(self.config.config):
             self.manager.register_module(module)
 
@@ -113,18 +89,13 @@ class XrefGen:
             bin_path = ida_nalt.get_input_file_path()
         except (TypeError, ValueError, AttributeError):
             bin_path = None
-        _set_debug_log_from_binary(bin_path if bin_path else "")
-        _dbg_log("run() started")
-
-        print("\n[XrefGen] Starting analysis...")
+        _info("Analysis started")
         _info(f"Binary: {ida_nalt.get_input_file_path()}")
         _info(f"Architecture: {self._get_arch_name()}")
-        _dbg_log("after header")
 
         # Wait for auto-analysis to complete
         if not self._wait_for_analysis():
             _warn("IDA analysis not complete, results may be incomplete")
-        _dbg_log("auto-analysis ready")
 
         # Refresh caches for IDA-backed analyzers (function ranges, validation cache)
         for module in self.manager.modules:
@@ -132,7 +103,7 @@ class XrefGen:
                 try:
                     module.refresh_caches()
                 except (TypeError, ValueError, AttributeError, RuntimeError):
-                    pass
+                    _warn(f"Cache refresh failed for {module.get_name()}")
 
         # Check for incremental analysis
         if incremental is None:
@@ -149,14 +120,12 @@ class XrefGen:
         # Run analysis with performance optimization (sequential and main-thread safe)
         if self.config.get("modules.performance.enabled"):
             _info("Running analysis...")
-            _dbg_log("starting optimizer.analyze_sequential")
             results_by_module = self.optimizer.analyze_sequential(
                 self.manager.modules,
                 modified_only=incremental,
                 selected_modules=modules,
                 modified_functions=modified_functions,
             )
-            _dbg_log("optimizer.analyze_sequential finished")
 
             # Combine results from modules
             all_results = []
@@ -227,7 +196,6 @@ class XrefGen:
 
         # Save results
         output_file = self.config.get("general.output_file", "_user_xrefs.txt")
-        _dbg_log(f"saving results to {output_file}")
         if not self.config.get("general.include_taint_kind", True):
             taint_kinds = {}
         self.presenter.save_results(
@@ -255,8 +223,6 @@ class XrefGen:
         # Save cache if enabled
         if self.config.get("modules.performance.use_cache"):
             self.optimizer.commit_cache()
-        _dbg_log("run() finished successfully")
-
         self.end_time = time.time()
 
         # Print statistics
@@ -320,27 +286,15 @@ class XrefGen:
 
         elapsed = self.end_time - self.start_time
 
-        print("\n" + "=" * 60)
-        print("                    ANALYSIS COMPLETE")
-        print("=" * 60)
-        print(f"  Total cross-references found: {self.total_xrefs}")
-        print(f"  Analysis time: {elapsed:.2f} seconds")
-        print(f"  Modules executed: {len(self.manager.modules)}")
+        _info(f"Analysis completed: xrefs={self.total_xrefs}, duration_sec={elapsed:.3f}, modules={len(self.manager.modules)}")
 
         if self.config.get("modules.performance.enabled"):
             stats = self.optimizer.get_statistics()
-            print("\n  Performance Statistics:")
-            print(f"    Cache enabled: {stats['cache_enabled']}")
-            print(f"    Incremental analysis: {stats['incremental_enabled']}")
-            print(f"    Cached functions: {stats['cached_functions']}")
-            print(f"    Cache size: {stats['cache_size_mb']:.2f} MB")
-
-        print("=" * 60)
-        print("\n[XrefGen] Use these references with Mandiant XRefer plugin")
+            _info(f"Performance statistics: cache_enabled={stats['cache_enabled']}, incremental={stats['incremental_enabled']}, cached_functions={stats['cached_functions']}, cache_size_mb={stats['cache_size_mb']:.2f}")
 
     def interactive_mode(self):
         """Run in interactive mode with preview"""
-        print("\n[XrefGen] Interactive mode")
+        _info("Interactive mode started")
         choice = self.presenter.show_main_menu()
 
         if choice == 0:  # Run full analysis
@@ -381,10 +335,10 @@ def main():
         import importlib.util
 
         if importlib.util.find_spec("idaapi") is None:
-            print("Error: This script must be run from within IDA Pro")
+            _warn("XrefGen must be run from within IDA Pro")
             return
     except (ImportError, ModuleNotFoundError):
-        print("Error: This script must be run from within IDA Pro")
+        _warn("XrefGen must be run from within IDA Pro")
         return
     # Parse arguments (if any)
     parser = argparse.ArgumentParser(
@@ -407,9 +361,9 @@ def main():
 
     # Create XrefGen instance
     xrefgen = XrefGen(config_file=args.config)
-    # Wire optimizer logger to file logger
+    # Keep optimizer diagnostics on the same configured logging pipeline.
     try:
-        xrefgen.optimizer.logger = _dbg_log
+        xrefgen.optimizer.logger = logger.debug
     except (AttributeError, TypeError):
         pass
 
@@ -423,7 +377,7 @@ def main():
     else:
         xrefgen.run(modules=args.modules, incremental=args.incremental)
 
-    print("\n[XrefGen] Analysis complete!")
+    _info("XrefGen entry point finished")
 
 
 if __name__ == "__main__":
