@@ -3,6 +3,7 @@
 import json
 import os
 import copy
+from modules.presentation.logger import warn, error, info
 from typing import Dict, Any, List
 
 
@@ -216,7 +217,7 @@ class Config:
         self.validation_errors = self.validate_config(self.config)
         if self.validation_errors:
             for err in self.validation_errors:
-                print(f"[XrefGen] Config warning: {err}")
+                warn(f"Configuration warning: {err}")
 
     def load_config(self) -> Dict[str, Any]:
         """Load configuration from file or use defaults."""
@@ -226,7 +227,7 @@ class Config:
                     user_config = json.load(f)
                     return self._merge_configs(self.DEFAULT_CONFIG, user_config)
             except (json.JSONDecodeError, KeyError, OSError) as e:
-                print(f"[XrefGen] Error loading config: {e}, using defaults")
+                error(f"Configuration load failed; using defaults: {e}")
                 return copy.deepcopy(self.DEFAULT_CONFIG)
         return copy.deepcopy(self.DEFAULT_CONFIG)
 
@@ -361,9 +362,9 @@ class Config:
         try:
             with open(self.config_file, "w") as f:
                 json.dump(self.config, f, indent=4)
-            print(f"[XrefGen] Configuration saved to {self.config_file}")
+            info(f"Configuration saved to {self.config_file}")
         except (IOError, OSError, TypeError) as e:
-            print(f"[XrefGen] Error saving config: {e}")
+            error(f"Configuration save failed: {e}")
 
     def _merge_configs(self, default: Dict, user: Dict) -> Dict:
         """Recursively merge user config with defaults."""

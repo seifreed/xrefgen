@@ -3,6 +3,7 @@
 from typing import Any, Dict, List
 from modules.domain.analyzer import XrefAnalyzer
 from modules.domain.results import AnalysisResult, RESULT_TYPES
+from modules.presentation.logger import info, error
 
 
 class ModuleManager:
@@ -18,7 +19,7 @@ class ModuleManager:
         """Register an analysis module."""
         if module.enabled:
             self.modules.append(module)
-            print(f"[XrefGen] Registered module: {module.get_name()}")
+            info(f"Registered module: {module.get_name()}")
 
     def run_analysis(
         self, selected_modules: List[str] = None
@@ -31,7 +32,7 @@ class ModuleManager:
             if selected_modules and module.get_name() not in selected_modules:
                 continue
 
-            print(f"[XrefGen] Running {module.get_name()}...")
+            info(f"Running module: {module.get_name()}")
             try:
                 module_results = module.analyze()
                 if any(not isinstance(result, RESULT_TYPES) for result in module_results):
@@ -40,11 +41,9 @@ class ModuleManager:
                     )
                 self.results_by_module[module.get_name()] = module_results
                 self.results.extend(module_results)
-                print(
-                    f"[XrefGen] {module.get_name()} found {len(module_results)} xrefs"
-                )
+                info(f"Module completed: {module.get_name()}, results={len(module_results)}")
             except (TypeError, ValueError, AttributeError, RuntimeError) as e:
-                print(f"[XrefGen] Error in {module.get_name()}: {e}")
+                error(f"Module failed: {module.get_name()}: {e}")
                 self.results_by_module[module.get_name()] = []
 
         return self.results

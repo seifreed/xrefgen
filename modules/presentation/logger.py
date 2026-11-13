@@ -14,6 +14,7 @@ _LEVELS = {"trace": 5, "debug": logging.DEBUG, "info": logging.INFO,
 logging.addLevelName(5, "TRACE")
 _logger = logging.getLogger("xrefgen")
 _logger.propagate = False
+_logger.setLevel(logging.INFO)
 _log_file: Optional[str] = None
 _level = _LEVELS["info"]
 

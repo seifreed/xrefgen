@@ -3,6 +3,7 @@
 from dataclasses import dataclass
 from importlib import import_module
 from typing import Dict, Tuple, Any
+from modules.presentation.logger import warn
 
 
 @dataclass(frozen=True)
@@ -65,7 +66,7 @@ def build_modules(
             instances.append(cls(config.get("modules", {}).get(spec.key, {})))
         except (ImportError, AttributeError, KeyError, TypeError) as exc:
             if spec.optional:
-                print(f"[XrefGen] Optional module {spec.key} not available: {exc}")
+                warn(f"Optional module {spec.key} unavailable: {exc}")
             else:
                 raise
 
