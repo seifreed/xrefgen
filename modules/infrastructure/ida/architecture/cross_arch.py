@@ -20,7 +20,7 @@ from modules.infrastructure.ida.performance.optimizer import IncrementalAnalyzer
 from modules.infrastructure.ida.utils.insn import scan_back_for_reg_source
 from modules.infrastructure.ida.architecture.wasm import WasmModule
 from modules.domain.results import AnalysisResult
-from modules.presentation.logger import warn
+from modules.observability import warn
 
 class CrossArchAnalyzer(IncrementalAnalyzer):
     """Architecture-specific xref analysis"""

@@ -34,8 +34,8 @@ from modules.application.config import Config
 # Import performance optimizer
 from modules.infrastructure.ida.performance.optimizer import PerformanceOptimizer
 from modules.presentation.cli import XrefGenPresenter
-from modules.presentation import logger
-from modules.presentation.logger import info as _info, warn as _warn, error as _error
+from modules import observability as logger
+from modules.observability import info as _info, warn as _warn, error as _error
 from modules.domain.results import RESULT_TYPES, ResultStore, is_control_flow_mnemonic
 from modules import __version__
 

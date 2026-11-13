@@ -11,7 +11,7 @@ import idc
 import idautils
 import ida_ida
 import ida_funcs
-from modules.presentation.logger import info, warn
+from modules.observability import info, warn
 
 try:
     import ida_typeinf

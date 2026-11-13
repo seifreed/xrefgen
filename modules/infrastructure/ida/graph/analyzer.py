@@ -8,7 +8,7 @@ import idaapi
 import idautils
 import idc
 import ida_funcs
-from modules.presentation.logger import info
+from modules.observability import info
 try:
     import ida_hexrays
 except (TypeError, ValueError, AttributeError, RuntimeError):

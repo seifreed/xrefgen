@@ -1,6 +1,6 @@
 # Logging and observability
 
-XrefGen runs inside IDA Pro and has no always-on server or external telemetry service. The presentation logger in `modules/presentation/logger.py` is the shared boundary; application and analysis code should emit through its `trace`, `debug`, `info`, `warn`, `error`, or `critical` functions.
+XrefGen runs inside IDA Pro and has no always-on server or external telemetry service. The shared boundary is `modules/observability.py`; application and analysis code emit through its `trace`, `debug`, `info`, `warn`, `error`, or `critical` functions. `modules/presentation/logger.py` remains a backward-compatible import alias.
 
 Events are one JSON object per line with an ISO-8601 UTC timestamp, normalized level, service (`xrefgen`), component, and message. Optional structured fields include `event_name`, `status`, `duration_ms`, and operation-specific counts. Control characters are flattened, and common credential assignments, sensitive fields, bearer credentials, and private key blocks are redacted. Do not put binary contents, full request/file contents, secrets, or unnecessary personal data in messages. Exceptions are recorded with sanitized type and stack.
 

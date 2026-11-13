@@ -31,7 +31,7 @@ class XrefGenPlugin(idaapi.plugin_t):
             xrefgen.XrefGen().interactive_mode()
         except (ImportError, AttributeError, TypeError, RuntimeError) as exc:
             try:
-                from modules.presentation.logger import exception
+                from modules.observability import exception
                 exception("Plugin launch failed", event_name="plugin.launch_failed", status="failed")
             except ImportError:
                 pass
@@ -39,7 +39,7 @@ class XrefGenPlugin(idaapi.plugin_t):
 
     def term(self):
         try:
-            from modules.presentation.logger import shutdown
+            from modules.observability import shutdown
             shutdown()
         except ImportError:
             pass

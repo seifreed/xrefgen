@@ -4,7 +4,7 @@ from typing import Any, Dict, List
 import time
 from modules.domain.analyzer import XrefAnalyzer
 from modules.domain.results import AnalysisResult, RESULT_TYPES
-from modules.presentation.logger import info, exception
+from modules.observability import info, exception
 
 
 class ModuleManager:

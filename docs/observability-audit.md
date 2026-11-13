@@ -26,7 +26,7 @@ Evidence through commits `21ad6a1` and `d72d6ca` (building on the earlier commit
 
 | Dimension | Current | Remaining evidence/gap |
 |---|---:|---|
-| Architecture and decoupling | 6 | Shared logger used broadly; validate layering/import behavior inside IDA and component attribution. |
+| Architecture and decoupling | 7 | Shared logger moved to neutral `modules.observability`, avoiding application/infrastructure imports from presentation; validate lifecycle inside IDA and component attribution. |
 | Functional coverage | 7 | Application and optimized module executions emit lifecycle events; remaining best-effort catches and IDA run need review. |
 | Event quality | 7 | Analysis and module lifecycle events carry stable names, outcome, duration, and result counts; other events remain free-form. |
 | Structure and consistency | 8 | JSON UTC schema with optional structured fields; component is currently always `xrefgen`. |
@@ -36,7 +36,7 @@ Evidence through commits `21ad6a1` and `d72d6ca` (building on the earlier commit
 | Configuration and portability | 6 | Invalid level/file sink fall back with a structured warning; no environment selector or retention configuration beyond fixed bounds. |
 | Error handling | 7 | Analysis boundary logs uncaught exceptions with sanitized stack and re-raises; remaining best-effort catches require review. |
 | Testing and verification | 7 | 38 maintained tests across logger, module events, config, registry, cache, results, corpus, taint, and wasm pass; global suite includes conflicting untracked tests, and IDA runtime tests are not run. |
-| **Provisional mean** | **6.7** | **67 / 10 dimensions; not final or release-ready** |
+| **Provisional mean** | **6.8** | **68 / 10 dimensions; not final or release-ready** |
 
 Do not use the provisional score as a completion claim. A final score requires resolving the remaining gaps, running the maintained test suite, and verifying the plugin lifecycle in IDA or documenting a genuine environment limitation.
 

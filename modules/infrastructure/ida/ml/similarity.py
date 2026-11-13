@@ -5,7 +5,7 @@ from modules.infrastructure.ida.base import IDAXrefAnalyzer
 from modules.domain.results import AnalysisResult
 import idautils
 import idc
-from modules.presentation.logger import error
+from modules.observability import error
 
 
 class SimilarityAnalyzer(IDAXrefAnalyzer):

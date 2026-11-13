@@ -35,7 +35,7 @@ from modules.infrastructure.ida.analysis.components import (
 from modules.infrastructure.ida.analysis.taint_rules import TaintRules
 from modules.infrastructure.ida.analysis.sink_policy import SinkPolicy
 from modules.infrastructure.ida.analysis.interprocedural import InterproceduralSummaries
-from modules.presentation.logger import warn
+from modules.observability import warn
 from modules.infrastructure.ida.analysis.call_policies import (
     CallInfo,
     TaintSourcePolicy,

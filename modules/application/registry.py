@@ -3,7 +3,7 @@
 from dataclasses import dataclass
 from importlib import import_module
 from typing import Dict, Tuple, Any
-from modules.presentation.logger import warn
+from modules.observability import warn
 
 
 @dataclass(frozen=True)

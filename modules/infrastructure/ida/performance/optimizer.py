@@ -25,7 +25,7 @@ from modules.domain.analyzer import XrefAnalyzer
 from modules.domain.results import AnalysisResult, deserialize_result, serialize_result
 from modules.infrastructure.ida.base import IDAXrefAnalyzer
 from modules.infrastructure.ida.utils.function_cache import FunctionBoundsCache
-from modules.presentation.logger import info, warn, exception, error
+from modules.observability import info, warn, exception, error
 
 
 class PerformanceOptimizer:

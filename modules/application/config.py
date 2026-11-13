@@ -3,7 +3,7 @@
 import json
 import os
 import copy
-from modules.presentation.logger import warn, error, info
+from modules.observability import warn, error, info
 from typing import Dict, Any, List
 
 

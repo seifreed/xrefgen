@@ -9,7 +9,7 @@ from dataclasses import asdict, is_dataclass
 import ida_kernwin
 import ida_nalt
 import idc
-from modules.presentation.logger import info, warn
+from modules.observability import info, warn
 from modules import __version__
 
 
