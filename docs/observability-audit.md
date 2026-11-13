@@ -20,14 +20,16 @@ The baseline is the repository state before commit `00a57e0` (logger source in i
 | Testing and verification | 1 | Basic helper tests only; no structured/security/concurrency/sink failure contracts. |
 | **Mean** | **1.5** | **15 / 10 dimensions** |
 
+The first progress reply used a rough `3/10` estimate before scoring each dimension. The required dimension-by-dimension mean above corrects that preliminary estimate to `1.5/10`.
+
 ## Current in-progress score
 
-Evidence through commits `ace5ab2`, `b0c753a`, `1b7f868`, `1115c82`, and `dbe173b` (building on the earlier commits listed in git history): standard-library logging moved below presentation, JSON UTC records and structured fields, TRACE–FATAL levels, bounded rotating file output, credential/control-character/private-key redaction, observable configuration fallback, concurrent and sink-failure tests, filtered-event fast path, sanitized exception type/stack, scoped analysis correlation, plugin shutdown and launch failure logging, structured artifact events with path minimization, module/analysis lifecycle events, and observable fallbacks for CFG/profile failures. The maintained selection passed 39 tests, including an actual rotation check. Many locally present test files are untracked and should not be treated as repository-owned baseline tests.
+Evidence through commit `2642531` (building on the earlier commits listed in git history): standard-library logging moved below presentation, JSON UTC records and structured fields, TRACE–FATAL levels, bounded rotating file output, credential/control-character/private-key redaction, observable configuration fallback, concurrent and sink-failure tests, filtered-event fast path, sanitized exception type/stack, scoped analysis correlation, plugin shutdown and launch failure logging, structured artifact events with path minimization, module/analysis lifecycle events, observable fallbacks for CFG/profile failures, and successful IDA 9.5 execution of both the module pipeline and `XrefGen.run()` with isolated artifact assertions. The maintained selection passed 39 tests, including an actual rotation check. Many locally present test files are untracked and should not be treated as repository-owned baseline tests.
 
 | Dimension | Current | Remaining evidence/gap |
 |---|---:|---|
 | Architecture and decoupling | 7 | Shared logger moved to neutral `modules.observability`, avoiding application/infrastructure imports from presentation; validate lifecycle inside IDA and component attribution. |
-| Functional coverage | 7 | Application and optimized module executions emit lifecycle events; remaining best-effort catches and IDA run need review. |
+| Functional coverage | 8 | Application and optimized module executions emit lifecycle events; full `XrefGen.run()` verified under IDA 9.5 on a real Mach-O fixture. Remaining best-effort catches and broader corpus runs need review. |
 | Event quality | 8 | Analysis, module and artifact events carry stable names, outcomes, durations/counts where useful; other events remain free-form. |
 | Structure and consistency | 8 | JSON UTC schema with optional structured fields; component is currently always `xrefgen`. |
 | Context and correlation | 5 | A per-run correlation ID and operation are scoped with `ContextVar`; no distributed tracing is justified for the current single-process design. |
@@ -35,8 +37,8 @@ Evidence through commits `ace5ab2`, `b0c753a`, `1b7f868`, `1115c82`, and `dbe173
 | Performance and resilience | 8 | 20,000-event in-memory benchmark: JSON INFO ~48,987 events/s, filtered DEBUG ~3,901,328 calls/s; bounded rotation and non-fatal file sink. IDA-thread impact remains unmeasured. |
 | Configuration and portability | 6 | Invalid level/file sink fall back with a structured warning; no environment selector or retention configuration beyond fixed bounds. |
 | Error handling | 7 | Analysis boundary logs uncaught exceptions with sanitized stack and re-raises; remaining best-effort catches require review. |
-| Testing and verification | 7 | 39 maintained tests across logger (including file rotation), module events, config, registry, cache, results, corpus, taint, and wasm pass; the IDA smoke test now asserts correlated JSON lifecycle events but has not been run here. |
-| **Provisional mean** | **7.0** | **70 / 10 dimensions; not final or release-ready** |
+| Testing and verification | 8 | 39 maintained tests pass; IDA 9.5 smoke test ran module analysis and production orchestration, checked correlation/duration/artifact events and output files. The entire repository test suite still includes conflicting untracked tests. |
+| **Provisional mean** | **7.2** | **72 / 10 dimensions; not final or release-ready** |
 
 Do not use the provisional score as a completion claim. A final score requires resolving the remaining gaps, running the maintained test suite, and verifying the plugin lifecycle in IDA or documenting a genuine environment limitation.
 
