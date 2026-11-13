@@ -34,8 +34,8 @@ Evidence through commit `0f5b3cb` plus follow-up commits `e2594d7` and `b9c2df1`
 | Security and privacy | 6 | Common credentials, bearer values, private keys and controls are redacted; broader sensitive-data review remains. |
 | Performance and resilience | 7 | Standard handler locking and bounded rotation; no benchmark or IDA-thread impact measurement. |
 | Configuration and portability | 5 | Level and file sink supported; no environment selector or retention configuration beyond fixed bounds. |
-| Error handling | 6 | Several swallowed operational failures now warn/error; remaining best-effort catches require review. |
-| Testing and verification | 5 | Logger contracts and tracked subset pass; global suite is polluted by untracked tests, and IDA runtime tests are not run. |
-| **Provisional mean** | **5.8** | **58 / 10 dimensions; not final or release-ready** |
+| Error handling | 7 | Analysis boundary logs uncaught exceptions with sanitized stack and re-raises; remaining best-effort catches require review. |
+| Testing and verification | 6 | 31 explicitly selected tracked tests pass; global suite is polluted by untracked tests, and IDA runtime tests are not run. |
+| **Provisional mean** | **6.0** | **60 / 10 dimensions; not final or release-ready** |
 
 Do not use the provisional score as a completion claim. A final score requires resolving the remaining gaps, running the maintained test suite, and verifying the plugin lifecycle in IDA or documenting a genuine environment limitation.
