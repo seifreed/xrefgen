@@ -87,7 +87,11 @@ class XrefGen:
     def run(self, modules: List[str] = None, incremental: bool = None):
         """Run one correlated analysis operation."""
         with logger.operation_context("analysis", uuid4().hex):
-            return self._run(modules, incremental)
+            try:
+                return self._run(modules, incremental)
+            except Exception:
+                logger.exception("Analysis operation failed")
+                raise
 
     def _run(self, modules: List[str] = None, incremental: bool = None):
         """Run the cross-reference generation"""
