@@ -3,6 +3,11 @@ import time
 import types
 import tempfile
 import unittest
+import io
+import json
+from contextlib import redirect_stdout
+
+from modules.presentation import logger
 
 def _create_mock_module(name):
     m = types.ModuleType(name)
@@ -66,6 +71,31 @@ class PerformanceCacheTests(unittest.TestCase):
             opt2 = PerformanceOptimizer(cfg2)
             # Config hash mismatch should result in empty cache load
             self.assertEqual(opt2.analysis_cache, {})
+
+    def test_failure_profile_omits_raw_exception_message(self):
+        from modules.infrastructure.ida.performance.optimizer import PerformanceOptimizer
+
+        class FailingAnalyzer:
+            enabled = True
+
+            def get_name(self):
+                return "FailingAnalyzer"
+
+            def analyze(self):
+                raise RuntimeError("token=profile-secret")
+
+        output = io.StringIO()
+        with redirect_stdout(output):
+            logger.configure(None, "error")
+            optimizer = PerformanceOptimizer({"use_cache": False, "incremental": False})
+            optimizer.analyze_sequential([FailingAnalyzer()], modified_only=False)
+            logger.shutdown()
+
+        event = json.loads(output.getvalue())
+        self.assertEqual(event["error_type"], "RuntimeError")
+        self.assertNotIn("profile-secret", output.getvalue())
+        self.assertEqual(optimizer.last_profile["FailingAnalyzer"]["error_type"], "RuntimeError")
+        self.assertNotIn("error", optimizer.last_profile["FailingAnalyzer"])
 
 
 if __name__ == "__main__":

@@ -138,11 +138,24 @@ class PerformanceOptimizer:
                         self.analysis_cache = {
                             int(k): v for k, v in raw_analysis.items()
                         }
-                        info(f"Loaded JSON cache with {len(self.function_cache)} functions")
+                        info(
+                            "Loaded JSON cache",
+                            event_name="cache.loaded",
+                            function_count=len(self.function_cache),
+                            analysis_count=sum(len(items) for items in self.analysis_cache.values()),
+                        )
                     else:
-                        warn("Cache version/config mismatch; starting fresh")
+                        warn(
+                            "Cache version or configuration mismatch; starting fresh",
+                            event_name="cache.rejected",
+                            reason="version_or_configuration_mismatch",
+                        )
             except (json.JSONDecodeError, KeyError, ValueError, OSError) as e:
-                warn("Cache load failed; starting fresh", error_type=type(e).__name__)
+                warn(
+                    "Cache load failed; starting fresh",
+                    event_name="cache.load_failed",
+                    error_type=type(e).__name__,
+                )
 
     def save_cache(self):
         """Save analysis results to JSON cache"""
@@ -172,14 +185,27 @@ class PerformanceOptimizer:
                 os.fsync(f.fileno())
             os.replace(temporary_file, cache_file)
 
-            info(f"Saved JSON cache with {len(self.function_cache)} functions")
+            info(
+                "Saved JSON cache",
+                event_name="cache.saved",
+                function_count=len(self.function_cache),
+                analysis_count=sum(len(items) for items in self.analysis_cache.values()),
+            )
         except (IOError, OSError, TypeError, ValueError) as e:
-            error("Cache save failed", error_type=type(e).__name__)
+            error(
+                "Cache save failed",
+                event_name="cache.save_failed",
+                error_type=type(e).__name__,
+            )
             try:
                 if temporary_file and os.path.exists(temporary_file):
                     os.remove(temporary_file)
             except OSError as cleanup_error:
-                warn("Temporary cache cleanup failed", error_type=type(cleanup_error).__name__)
+                warn(
+                    "Temporary cache cleanup failed",
+                    event_name="cache.temporary_cleanup_failed",
+                    error_type=type(cleanup_error).__name__,
+                )
 
     def get_modified_functions(self) -> Set[int]:
         """Detect functions modified since last analysis using reliable hashing"""
@@ -214,7 +240,12 @@ class PerformanceOptimizer:
         for func_ea in modified:
             self.analysis_cache.pop(func_ea, None)
 
-        info(f"Incremental analysis found {len(modified)} modified functions")
+        info(
+            "Incremental changes detected",
+            event_name="analysis.incremental_changes_detected",
+            modified_function_count=len(modified),
+            function_count=len(current_funcs),
+        )
         return modified
 
     def commit_cache(self) -> None:
@@ -380,7 +411,10 @@ class PerformanceOptimizer:
                     duration_ms=round(max(0.0, time.time() - start_t) * 1000, 3),
                 )
                 results[name] = []
-                profile[name] = {"duration_sec": 0.0, "error": str(e)}
+                profile[name] = {
+                    "duration_sec": 0.0,
+                    "error_type": type(e).__name__,
+                }
 
         self.last_profile = profile
         self._active_analyzer = None
@@ -478,7 +512,7 @@ class PerformanceOptimizer:
             if not self.analysis_cache[func_ea]:
                 del self.analysis_cache[func_ea]
 
-        info("Memory optimization completed")
+        info("Memory optimization completed", event_name="cache.memory_optimized")
 
     def get_statistics(self) -> Dict[str, Any]:
         """Get performance statistics"""
@@ -504,13 +538,27 @@ class PerformanceOptimizer:
     def clear_cache(self):
         self.function_cache.clear()
         self.analysis_cache.clear()
+        removed_count = 0
+        failure_count = 0
         if self.use_cache:
             for file in os.listdir(self.cache_dir):
                 try:
                     os.remove(os.path.join(self.cache_dir, file))
+                    removed_count += 1
                 except OSError as exc:
-                    warn("Cache entry could not be removed", error_type=type(exc).__name__)
-        info("Cache cleared")
+                    failure_count += 1
+                    warn(
+                        "Cache entry could not be removed",
+                        event_name="cache.entry_removal_failed",
+                        error_type=type(exc).__name__,
+                    )
+        info(
+            "Cache clear completed",
+            event_name="cache.cleared",
+            status="partial" if failure_count else "completed",
+            removed_count=removed_count,
+            failure_count=failure_count,
+        )
 
 
 class IncrementalAnalyzer(IDAXrefAnalyzer):
