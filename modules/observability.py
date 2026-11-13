@@ -103,7 +103,30 @@ class _SafeRotatingFileHandler(RotatingFileHandler):
         return stream
 
     def handleError(self, record):
-        return
+        if getattr(self, "_failure_reported", False):
+            return
+        self._failure_reported = True
+        exc_type, _, _ = sys.exc_info()
+        failure = logging.LogRecord(
+            _logger.name,
+            logging.WARNING,
+            __file__,
+            0,
+            "File logging sink failed; records may be unavailable",
+            (),
+            None,
+            "handleError",
+        )
+        failure.xrefgen_fields = {"event_name": "logging.sink_failed", "sink": "file"}
+        if exc_type:
+            failure.xrefgen_fields["error_type"] = exc_type.__name__
+        for handler in _logger.handlers[:]:
+            if isinstance(handler, _SafeStreamHandler):
+                try:
+                    handler.handle(failure)
+                except Exception:
+                    pass
+                break
 
 
 def configure(

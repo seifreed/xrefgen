@@ -84,18 +84,38 @@ def test_unavailable_file_destination_falls_back_to_console(capsys, tmp_path, mo
     assert events[-1]["message"] == "console fallback"
 
 
-def test_file_write_failure_does_not_raise(capsys, tmp_path):
+def test_file_write_failure_warns_once_without_leaking_error(capsys, tmp_path):
     logger.configure(str(tmp_path / "events.log"), "info")
+
     class BrokenStream:
+        def tell(self):
+            return 0
+
+        def seek(self, *_args):
+            return 0
+
         def write(self, _text):
-            raise OSError("disk unavailable")
+            raise OSError("token=file-private")
 
         def flush(self):
             pass
 
     logger._logger.handlers[1].stream = BrokenStream()
     logger.info("still available")
-    assert json.loads(capsys.readouterr().out)["message"] == "still available"
+    logger.info("still available again")
+    output = capsys.readouterr()
+    events = [json.loads(line) for line in output.out.splitlines()]
+    failures = [event for event in events if event.get("event_name") == "logging.sink_failed"]
+    assert len(failures) == 1
+    assert failures[0]["error_type"] == "OSError"
+    assert failures[0]["component"] == "observability"
+    assert failures[0]["message"] == "File logging sink failed; records may be unavailable"
+    assert [event["message"] for event in events if event.get("event_name") != "logging.sink_failed"] == [
+        "still available",
+        "still available again",
+    ]
+    assert "file-private" not in output.out
+    assert "file-private" not in output.err
 
 
 def test_console_write_failure_does_not_raise_or_leak(capsys):
